@@ -3,7 +3,7 @@ import { TextInput } from "./input.mjs";
 import { leaderboard } from "./leaderboardData.mjs";
 import { gsap } from "../node_modules/gsap/index.js";
 import { HitEventManager } from "./hitEventManager.mjs";
-import { gameSound, playSound, playChangeSound } from "./soundManager.mjs";
+import { gameSound, playSound, playBGM, stopBGM } from "./soundManager.mjs";
 import { titleStyle, infoStyle, infoStyle2, defaultStyle, scoreStyle, comboStyle } from "./textStyle.mjs";
 import { AnimationManager } from "./animationManager.mjs";
 
@@ -165,7 +165,7 @@ class Game {
     book.cursor = "pointer";
     book.removeAllListeners();
     book.on("pointerdown", () => {
-      playSound(gameSound.button);
+      playSound("button");
       this.bookPage();
     });
 
@@ -234,7 +234,7 @@ class Game {
 
         startButton.on("pointerdown", () => {
           if (this.time === gameTime) {
-            playSound(gameSound.button);
+            playSound("button");
             this.userName = value.trim();
             this.inputBox.showtext.text = "";
             startButton.removeAllListeners();
@@ -349,7 +349,7 @@ class Game {
     pineapples.forEach((pineapple) => {
       pineapple.eventMode = "static";
       pineapple.on("pointerover", () => {
-        playSound(gameSound.select);
+        playSound("select");
         pineapple.scale.set(0.23);
         const nameText = new Text({
           text: pineapple.textureName,
@@ -383,7 +383,7 @@ class Game {
     this.pineMomCon.cursor = "pointer";
     this.pineMomCon.off("pointerdown");
     this.pineMomCon.on("pointerdown", () => {
-      playSound(gameSound.button);
+      playSound("button");
       if (this.currentQuestion === QUESTION_TYPE.SEXUAL) {
         this.currentQuestion = QUESTION_TYPE.ASEXUAL;
         sexualBG.alpha = 0;
@@ -419,7 +419,7 @@ class Game {
     closeBtn.y = 80;
     closeBtn.tint = 0xb8b8b8;
     closeBtn.on("pointerdown", () => {
-      playSound(gameSound.button);
+      playSound("button");
       this.startTitle();
     });
     closeBtn.on("pointerover", () => {
@@ -551,12 +551,12 @@ class Game {
       }
 
       this.score += this.currentScoreValue;
-      playSound(gameSound.correct);
+      playSound("correct");
       this.animationManager.animateCombo(this.comboCount);
 
       console.log("正確，+" + this.currentScoreValue + "分");
     } else if (isWrong) {
-      playSound(gameSound.wrong);
+      playSound("wrong");
       //答錯Combo歸零,切割完全錯誤的水果扣15分
       this.comboCount = 0;
       this.currentScoreValue = 10;
@@ -564,7 +564,7 @@ class Game {
       this.animationManager.animateCombo(this.comboCount);
       console.log("錯誤，-15分");
     } else {
-      playSound(gameSound.wrong);
+      playSound("wrong");
       //答錯Combo歸零
       this.comboCount = 0;
       this.currentScoreValue = 10;
@@ -653,7 +653,7 @@ class Game {
 
   async ReadyGo() {
     // 播放音效
-    playSound(gameSound.readyGo);
+    playSound("readyGo");
     this.sceneContainer.removeChildren();
     await this.animationManager.showReadyGoAnimation();
 
@@ -673,6 +673,8 @@ class Game {
     if (this.gameIntervals) {
       Object.values(this.gameIntervals).forEach((interval) => clearInterval(interval));
     }
+
+    playBGM();
 
     // 初始化定時器對象
     this.gameIntervals = {};
@@ -746,7 +748,7 @@ class Game {
         clearInterval(this.gameIntervals.questionInterval);
       }
       if (this.time === 0) {
-        playSound(gameSound.timeUp);
+        playSound("timeUp");
       }
       if (this.time < 0) {
         this.time = 0;
@@ -810,7 +812,7 @@ class Game {
         clearInterval(this.gameIntervals.questionInterval);
       }
       if (this.time === 0) {
-        playSound(gameSound.timeUp);
+        playSound("timeUp");
       }
       if (this.time < 0) {
         this.time = 0;
@@ -821,6 +823,7 @@ class Game {
   }
 
   async endGame() {
+    stopBGM();
     // 移除頁面可見性事件監聽器
     document.removeEventListener("visibilitychange", this.handleVisibilityChange);
 
@@ -929,7 +932,7 @@ class Game {
     confirmButton.eventMode = "static";
     confirmButton.cursor = "pointer";
     confirmButton.on("pointerdown", () => {
-      playSound(gameSound.button);
+      playSound("button");
       this.leaderboard();
     });
     confirmButton.on("pointerover", () => ((confirmButton.tint = 0xe0e0e0), confirmCon.scale.set(1.01)));
@@ -1156,9 +1159,9 @@ class Game {
     const playerRank = leaderboard.data.findIndex((player) => player.name === this.userName);
 
     if (playerRank >= 0 && playerRank < 3) {
-      playSound(gameSound.winRank);
+      playSound("winRank");
     } else if (!isOnLeaderboard) {
-      playSound(gameSound.uhOh);
+      playSound("uhOh");
     }
 
     if (!isOnLeaderboard) {
@@ -1209,7 +1212,7 @@ class Game {
     retryButton.eventMode = "static";
     retryButton.cursor = "pointer";
     retryButton.on("pointerdown", () => {
-      playSound(gameSound.button);
+      playSound("button");
       cleanup();
       this.sceneContainer.removeChildren();
       this.startTitle();

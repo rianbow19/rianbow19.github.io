@@ -8,8 +8,6 @@ export class AnimationManager {
   }
 
   async showReadyGoAnimation() {
-    console.log("Ready-Go 動畫結束");
-
     const readyText = new Text({
       text: "READY",
       style: gdStyle,

@@ -98,7 +98,7 @@ class HitEventManager {
     hitArea.on("pointermove", (e) => {
       if (!this.game.isGameRunning || !this.mouseState.isDown) return;
       if (!this.mouseState.cutSoundPlayed) {
-        playSound(gameSound.cut);
+        playSound("cut");
         this.mouseState.cutSoundPlayed = true;
       }
       // 檢查按下時間是否超過限制
