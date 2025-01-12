@@ -389,14 +389,14 @@ class Game {
         sexualBG.alpha = 0;
         asexualBG.alpha = 0.5;
 
-        this.stopWaveAnimation();
-        this.animateInWave(bottomPineapples);
+        this.animationManager.stopWaveAnimation();
+        this.animationManager.animateInWave(bottomPineapples);
       } else {
         this.currentQuestion = QUESTION_TYPE.SEXUAL;
         sexualBG.alpha = 0.5;
         asexualBG.alpha = 0;
-        this.stopWaveAnimation();
-        this.animateInWave(topPineapples);
+        this.animationManager.stopWaveAnimation();
+        this.animationManager.animateInWave(topPineapples);
       }
       this.questionText.text = this.currentQuestion;
     });
