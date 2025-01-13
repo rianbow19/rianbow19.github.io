@@ -320,7 +320,7 @@ class Game {
 
     const pineappleTextures = ["基因轉殖鳳梨.png", "種子鳳梨.png", "冠芽鳳梨.png", "組織培養的鳳梨.png", "裔芽鳳梨.png", "吸芽鳳梨.png"];
 
-    const topPineapples = pineappleTextures
+    const sexualPine = pineappleTextures
       .slice(0, 2) //基因鳳梨和種子鳳梨
       .map((textureName, index) => {
         const pineapple = new Sprite(Texture.from(textureName));
@@ -332,7 +332,7 @@ class Game {
         return pineapple;
       });
 
-    const bottomPineapples = pineappleTextures
+    const asexualPine = pineappleTextures
       .slice(2) //其他四個鳳梨
       .map((textureName, index) => {
         const pineapple = new Sprite(Texture.from(textureName));
@@ -344,30 +344,28 @@ class Game {
         return pineapple;
       });
 
-    const pineapples = [...topPineapples, ...bottomPineapples];
+    const pineapples = [...sexualPine, ...asexualPine];
 
     pineapples.forEach((pineapple) => {
+      const nameText = new Text({
+        text: pineapple.textureName,
+        style: infoStyle2,
+      });
+      nameText.anchor.set(0.5);
+      nameText.x = pineapple.x;
+      nameText.y = pineapple.y + pineapple.height / 2 + 20;
+      this.sceneContainer.addChild(nameText);
+
+      pineapple._nameText = nameText;
+
       pineapple.eventMode = "static";
       pineapple.on("pointerover", () => {
         playSound("select");
         pineapple.scale.set(0.23);
-        const nameText = new Text({
-          text: pineapple.textureName,
-          style: infoStyle2,
-        });
-        nameText.anchor.set(0.5);
-        nameText.x = pineapple.x;
-        nameText.y = pineapple.y + pineapple.height / 2 + 20;
-        this.sceneContainer.addChild(nameText);
-        pineapple._nameText = nameText;
       });
 
       pineapple.on("pointerout", () => {
         pineapple.scale.set(0.22);
-        if (pineapple._nameText) {
-          this.sceneContainer.removeChild(pineapple._nameText);
-          pineapple._nameText = null;
-        }
       });
     });
 
@@ -388,15 +386,16 @@ class Game {
         this.currentQuestion = QUESTION_TYPE.ASEXUAL;
         sexualBG.alpha = 0;
         asexualBG.alpha = 0.5;
-
+        sexualPine.nameText = "";
         this.animationManager.stopWaveAnimation();
-        this.animationManager.animateInWave(bottomPineapples);
+        this.animationManager.animateInWave(asexualPine);
       } else {
         this.currentQuestion = QUESTION_TYPE.SEXUAL;
         sexualBG.alpha = 0.5;
         asexualBG.alpha = 0;
+        asexualPine.nameText = "";
         this.animationManager.stopWaveAnimation();
-        this.animationManager.animateInWave(topPineapples);
+        this.animationManager.animateInWave(sexualPine);
       }
       this.questionText.text = this.currentQuestion;
     });
@@ -1006,13 +1005,6 @@ class Game {
     await this.fadeInScene();
   }
 
-  updateScoreAndTime() {
-    this.timeText.text = `時間: ${this.time}`;
-    this.scoreText.text = `分數: ${this.score}`;
-    this.questionText.text = this.currentQuestion;
-    this.questBG.tint = this.currentQuestion === QUESTION_TYPE.SEXUAL ? 0x779938 : 0xffffff;
-  }
-
   update(delta) {
     //確認開始遊戲
     if (!this.timeText) return;
@@ -1029,7 +1021,10 @@ class Game {
     this.hitEventManager.drawTrailLines();
 
     //更新時間分數顯示
-    this.updateScoreAndTime();
+    this.timeText.text = `時間: ${this.time}`;
+    this.scoreText.text = `分數: ${this.score}`;
+    this.questionText.text = this.currentQuestion;
+    this.questBG.tint = this.currentQuestion === QUESTION_TYPE.SEXUAL ? 0x779938 : 0xffffff;
 
     //更新所有飛行物件
     for (let i = 0; i < this.objects.length; i++) {
@@ -1056,36 +1051,5 @@ class Game {
         i--; //刪除後索引往回
       }
     }
-  }
-
-  //鳳梨說明動畫效果
-  animateInWave(pineappleArray) {
-    this.stopWaveAnimation();
-
-    pineappleArray.forEach((pineapple, i) => {
-      if (!pineapple.originalY) {
-        pineapple.originalY = pineapple.y; //記錄初始 Y 位置
-      } else {
-        pineapple.y = pineapple.originalY;
-      }
-      //每個鳳梨在 Y 軸上下跳動
-      const tl = gsap.to(pineapple, {
-        y: pineapple.y - 30,
-        duration: 0.5,
-        ease: "power1.inOut",
-        repeat: -1, //無限重複
-        yoyo: true, //來回
-        delay: i * 0.1, //每個鳳梨延遲 0.1 秒
-      });
-      this.waveTimelines.push(tl);
-    });
-  }
-
-  //停止動畫
-  stopWaveAnimation() {
-    this.waveTimelines.forEach((tl) => {
-      tl.kill();
-    });
-    this.waveTimelines = [];
   }
 }
