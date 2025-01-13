@@ -4,7 +4,7 @@ import { leaderboard } from "./leaderboardData.mjs";
 import { gsap } from "../gsap_src/index.js";
 import { HitEventManager } from "./hitEventManager.mjs";
 import { playSound, playBGM, stopBGM } from "./soundManager.mjs";
-import { titleStyle, infoStyle, infoStyle2, defaultStyle, scoreStyle, comboStyle, infoStyle3 } from "./textStyle.mjs";
+import { titleStyle, infoStyle, infoStyle2, scoreStyle, comboStyle, infoStyle3 } from "./textStyle.mjs";
 import { AnimationManager } from "./animationManager.mjs";
 
 export { Game };
@@ -730,7 +730,7 @@ class Game {
         this.currentQuestion = QUESTION_TYPE.SEXUAL;
         this.availableFruits.length = 0;
       }
-      playChangeSound();
+      playSound("change");
       console.log("切換題目:", this.currentQuestion);
     }, 10000);
 
@@ -802,7 +802,7 @@ class Game {
       } else {
         this.currentQuestion = QUESTION_TYPE.SEXUAL;
       }
-      playChangeSound();
+      playSound("change");
     }, 10000);
 
     this.gameIntervals.spawnInterval = setInterval(() => {

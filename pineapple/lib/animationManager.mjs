@@ -165,7 +165,7 @@ export class AnimationManager {
     }
   }
 
-  async animateLeaderboard(sceneContainer, leaderboard, userName) {
+  async animateLeaderboard(sceneContainer, leaderboard, userName, currentScore) {
     const VIEWPORT_WIDTH = 1000;
     const VIEWPORT_HEIGHT = 600;
     const ENTRY_HEIGHT = 100;
@@ -369,6 +369,41 @@ export class AnimationManager {
           );
       }
     });
+
+    // 找到玩家當前分數的位置
+    let targetIndex = -1;
+
+    // 1. 先找目前分數
+    targetIndex = leaderboard.data.findIndex((entry) => entry.name === userName && entry.score === currentScore);
+
+    // 2. 如果沒找到，找相同名字最高分
+    if (targetIndex === -1) {
+      const sameNameEntries = leaderboard.data.filter((entry) => entry.name === userName);
+      if (sameNameEntries.length > 0) {
+        // 找出最高分的index
+        const highestScore = Math.max(...sameNameEntries.map((entry) => entry.score));
+        targetIndex = leaderboard.data.findIndex((entry) => entry.name === userName && entry.score === highestScore);
+      }
+    }
+
+    // 滾動到目標位置
+    if (targetIndex !== -1) {
+      const targetScroll = Math.max(0, Math.min(targetIndex * ENTRY_HEIGHT - VIEWPORT_HEIGHT / 2 + ENTRY_HEIGHT / 2, maxScroll));
+
+      gsap.timeline().to(scrollContainer, {
+        y: START_Y - targetScroll,
+        duration: 0.8,
+        ease: "power2.inOut",
+        onUpdate: () => {
+          const scrollPercentage = targetScroll / maxScroll;
+          const scrollRange = VIEWPORT_HEIGHT - handleHeight;
+          scrollbarHandle.y = START_Y + scrollRange * scrollPercentage;
+
+          topIndicator.visible = targetScroll > 0;
+          bottomIndicator.visible = targetScroll < maxScroll;
+        },
+      });
+    }
 
     if (bgRect.eventMode === "static") {
       bgRect.removeAllListeners();
