@@ -363,10 +363,10 @@ export class AnimationManager {
 
   async animateLeaderboard(container, leaderboard, userName) {
     let touchStartY = 0;
-    let scrollY = 0;
-    let currentY = 0;
+    let lastTouchY = 0;
+    let isDragging = false;
     let velocity = 0;
-    let isScrolling = false;
+    let lastTime = 0;
 
     const leaderboardContainer = new Container();
     container.addChild(leaderboardContainer);
@@ -582,6 +582,53 @@ export class AnimationManager {
         this.scrollThrottleTimeout = null;
       }, 16);
     };
+    // 添加觸摸事件處理程序到 scrollContainer
+    scrollContainer.eventMode = "static";
+    scrollContainer.on("touchstart", (e) => {
+      isDragging = true;
+      touchStartY = e.data.global.y;
+      lastTouchY = touchStartY;
+      lastTime = Date.now();
+      velocity = 0;
+
+      if (this.currentScrollAnimation) {
+        this.currentScrollAnimation.kill();
+      }
+    });
+
+    scrollContainer.on("touchmove", (e) => {
+      if (!isDragging) return;
+
+      const currentY = e.data.global.y;
+      const deltaY = lastTouchY - currentY;
+      const newScroll = currentScroll + deltaY;
+
+      // 計算速度
+      const currentTime = Date.now();
+      const timeElapsed = currentTime - lastTime;
+      velocity = deltaY / timeElapsed;
+
+      lastTouchY = currentY;
+      lastTime = currentTime;
+
+      updateScroll(newScroll);
+    });
+
+    scrollContainer.on("touchend", () => {
+      isDragging = false;
+
+      // 應用慣性滾動
+      const inertialScroll = () => {
+        if (Math.abs(velocity) > 0.01) {
+          velocity *= 0.95; // 應用摩擦力
+          const newScroll = currentScroll + velocity * 16; // 每幀16ms
+          updateScroll(newScroll);
+          requestAnimationFrame(inertialScroll);
+        }
+      };
+
+      requestAnimationFrame(inertialScroll);
+    });
 
     //更新排行榜
     leaderboard.data.forEach((player, index) => {
@@ -636,6 +683,9 @@ export class AnimationManager {
       }
       if (bgRect.eventMode === "static") {
         bgRect.removeAllListeners();
+      }
+      if (scrollContainer.eventMode === "static") {
+        scrollContainer.removeAllListeners();
       }
     };
 
