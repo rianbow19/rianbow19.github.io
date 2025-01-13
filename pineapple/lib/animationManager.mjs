@@ -459,4 +459,25 @@ export class AnimationManager {
       });
     });
   }
+
+  animateScoreChange(scoreText, newScore) {
+    const oldScore = parseInt(scoreText.text.split(": ")[1]);
+    const duration = 0.5;
+    const frameRate = 60;
+    const totalFrames = duration * frameRate;
+    const increment = (newScore - oldScore) / totalFrames;
+
+    let currentScore = oldScore;
+    const updateScore = () => {
+      currentScore += increment;
+      scoreText.text = `分數: ${Math.round(currentScore)}`;
+      if (Math.abs(currentScore - newScore) > Math.abs(increment)) {
+        requestAnimationFrame(updateScore);
+      } else {
+        scoreText.text = `分數: ${newScore}`;
+      }
+    };
+
+    updateScore();
+  }
 }

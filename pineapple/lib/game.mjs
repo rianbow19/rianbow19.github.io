@@ -558,6 +558,7 @@ class Game {
       this.score += this.currentScoreValue;
       playSound("correct");
       this.animationManager.animateCombo(this.comboCount);
+      this.animationManager.animateScoreChange(this.scoreText, this.score);
 
       console.log("正確，+" + this.currentScoreValue + "分");
     } else if (isWrong) {
@@ -567,6 +568,7 @@ class Game {
       this.currentScoreValue = 10;
       this.score = Math.max(this.score - 15, 0);
       this.animationManager.animateCombo(this.comboCount);
+      this.animationManager.animateScoreChange(this.scoreText, this.score);
       console.log("錯誤，-15分");
     } else {
       playSound("wrong");
@@ -575,6 +577,7 @@ class Game {
       this.currentScoreValue = 10;
       this.score = Math.max(this.score - 10, 0);
       this.animationManager.animateCombo(this.comboCount);
+      this.animationManager.animateScoreChange(this.scoreText, this.score);
 
       console.log("錯誤，-10分");
     }
@@ -1008,7 +1011,7 @@ class Game {
 
     //更新時間分數顯示
     this.timeText.text = `時間: ${this.time}`;
-    this.scoreText.text = `分數: ${this.score}`;
+    //this.scoreText.text = `分數: ${this.score}`;
     this.questionText.text = this.currentQuestion;
     this.questBG.tint = this.currentQuestion === QUESTION_TYPE.SEXUAL ? 0x779938 : 0xffffff;
 
