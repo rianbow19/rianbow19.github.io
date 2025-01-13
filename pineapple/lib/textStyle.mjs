@@ -51,6 +51,14 @@ const infoStyle2 = new TextStyle({
   stroke: { color: "#3C3C3C", width: 15, join: "round" },
 });
 
+const infoStyle3 = new TextStyle({
+  fontFamily: "Microsoft JhengHei, PingFang TC, sans-serif",
+  fontSize: 24,
+  fontWeight: "bold",
+  fill: "#F0FFF0",
+  stroke: { color: "#3C3C3C", width: 15, join: "round" },
+});
+
 const fill = new FillGradient(0, 0, 0, 10 * 1.7 * 7);
 const colors = ["#6a8783", "#01b468"].map((color) => Color.shared.setValue(color).toNumber());
 colors.forEach((number, index) => {
@@ -66,4 +74,4 @@ const gdStyle = new TextStyle({
   stroke: { color: "#ffffff", width: 15, join: "round" },
 });
 
-export { defaultStyle, titleStyle, scoreStyle, comboStyle, infoStyle, infoStyle2, gdStyle };
+export { defaultStyle, titleStyle, scoreStyle, comboStyle, infoStyle, infoStyle2, infoStyle3, gdStyle };

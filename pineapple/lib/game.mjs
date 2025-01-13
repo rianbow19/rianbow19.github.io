@@ -3,8 +3,8 @@ import { TextInput } from "./input.mjs";
 import { leaderboard } from "./leaderboardData.mjs";
 import { gsap } from "../node_modules/gsap/index.js";
 import { HitEventManager } from "./hitEventManager.mjs";
-import { gameSound, playSound, playBGM, stopBGM } from "./soundManager.mjs";
-import { titleStyle, infoStyle, infoStyle2, defaultStyle, scoreStyle, comboStyle } from "./textStyle.mjs";
+import { playSound, playBGM, stopBGM } from "./soundManager.mjs";
+import { titleStyle, infoStyle, infoStyle2, defaultStyle, scoreStyle, comboStyle, infoStyle3 } from "./textStyle.mjs";
 import { AnimationManager } from "./animationManager.mjs";
 
 export { Game };
@@ -333,24 +333,12 @@ class Game {
     pineapples.forEach((pineapple) => {
       const nameText = new Text({
         text: pineapple.textureName,
-        style: {
-          ...infoStyle2,
-          fontSize: 24,
-        },
+        style: infoStyle3,
       });
       nameText.anchor.set(0.5);
       nameText.x = pineapple.x;
       nameText.y = pineapple.y + pineapple.height / 2 + 20;
       this.sceneContainer.addChild(nameText);
-      if (viewState === 0) {
-        pineapple._nameText = "";
-      } else if (viewState === 1) {
-        sexualPine._nameText = nameText;
-        asexualPine._nameText = "";
-      } else if (viewState === 2) {
-        sexualPine._nameText = "";
-        asexualPine._nameText = nameText;
-      }
 
       pineapple.eventMode = "static";
       pineapple.on("pointerover", () => {
@@ -370,6 +358,7 @@ class Game {
     this.pineMomCon.x = 1600;
     this.pineMomCon.y = 280;
     this.questionText.text = "遊戲規則";
+    this.questBG.tint = 0xffffff;
 
     //下一頁按鈕
     const nextBtn = new Sprite(Texture.from("next.png"));
@@ -377,6 +366,8 @@ class Game {
     nextBtn.anchor.set(0.5);
     nextBtn.x = 1800;
     nextBtn.y = 1000;
+    this.sceneContainer.addChild(nextBtn);
+
     nextBtn.cursor = "pointer";
     nextBtn.eventMode = "static";
     nextBtn.on("pointerdown", async () => {
@@ -411,9 +402,11 @@ class Game {
     });
     nextBtn.on("pointerover", () => {
       nextBtn.scale.set(0.22);
+      nextBtn.tint = 0xffffff;
     });
     nextBtn.on("pointerout", () => {
       nextBtn.scale.set(0.2);
+      nextBtn.tint = 0xb8b8b8;
     });
 
     //關閉按鈕
@@ -777,7 +770,7 @@ class Game {
     document.addEventListener("visibilitychange", this.handleVisibilityChange);
 
     this.hitEventManager.setupMouseEvents();
-    await this.fadeInScene();
+    await this.animationManager.fadeInScene(this.sceneContainer);
   }
 
   // 新增暫停遊戲方法
@@ -839,11 +832,7 @@ class Game {
       Object.values(this.gameIntervals).forEach((interval) => clearInterval(interval));
     }
 
-    await this.fadeOutScene();
-    this.sceneContainer.removeChildren();
-    this.isGameRunning = false;
-
-    await this.fadeOutScene();
+    await this.animationManager.fadeOutScene(this.sceneContainer);
     this.sceneContainer.removeChildren();
     this.isGameRunning = false;
 
@@ -868,10 +857,7 @@ class Game {
     // 遊戲結束文字
     const endText = new Text({
       text: "遊戲結束",
-      style: {
-        ...titleStyle,
-        fill: 0xffffff,
-      },
+      style: titleStyle,
     });
     endText.anchor.set(0.5);
     endText.x = 960;
@@ -888,25 +874,15 @@ class Game {
     // 分數標題文字
     const scoreTitle = new Text({
       text: `最終分數`,
-      style: {
-        ...infoStyle,
-        fontSize: 36,
-        fill: 0x6a8783,
-      },
+      style: infoStyle,
     });
     scoreTitle.anchor.set(0.5);
     scoreTitle.x = 960;
     scoreTitle.y = 480;
 
-    // 實際分數
     const scoreNumber = new Text({
       text: `${this.score}`,
-      style: {
-        ...infoStyle,
-        fontSize: 48,
-        fill: 0x6a8783,
-        fontWeight: "bold",
-      },
+      style: infoStyle,
     });
     scoreNumber.anchor.set(0.5);
     scoreNumber.x = 960;
@@ -926,10 +902,7 @@ class Game {
     // 按鈕文字
     const confirmText = new Text({
       text: "查看排行榜",
-      style: {
-        ...infoStyle2,
-        fill: 0xffffff,
-      },
+      style: infoStyle2,
     });
     confirmText.anchor.set(0.5);
     confirmCon.addChild(confirmButton, confirmText);
@@ -945,11 +918,11 @@ class Game {
     confirmButton.on("pointerover", () => ((confirmButton.tint = 0xe0e0e0), confirmCon.scale.set(1.01)));
     confirmButton.on("pointerout", () => ((confirmButton.tint = 0xffffff), confirmCon.scale.set(1)));
 
-    await this.fadeInScene();
+    await this.animationManager.fadeInScene(this.sceneContainer);
   }
 
   async leaderboard() {
-    await this.fadeOutScene();
+    await this.animationManager.fadeOutScene(this.sceneContainer);
     this.sceneContainer.removeChildren();
 
     const cleanup = await this.animationManager.animateLeaderboard(this.sceneContainer, leaderboard, this.userName);
@@ -1010,7 +983,7 @@ class Game {
       retryCon.scale.set(1);
     });
 
-    await this.fadeInScene();
+    await this.animationManager.fadeInScene(this.sceneContainer);
   }
 
   update(delta) {
