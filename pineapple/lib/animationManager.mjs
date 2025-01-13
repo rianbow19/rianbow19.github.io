@@ -165,202 +165,6 @@ export class AnimationManager {
     }
   }
 
-  async showGameOverAnimation() {
-    // 創建背景面板
-    const panel = new Graphics();
-    panel.roundRect(0, 0, 800, 600, 30);
-    panel.fill({ color: 0xffffff, alpha: 0.95 });
-    panel.stroke({ width: 8, color: 0x6a8783 });
-    panel.x = 560;
-    panel.y = 240;
-
-    // 裝飾性的頂部條紋
-    const topStripe = new Graphics();
-    topStripe.roundRect(0, 0, 800, 80, { tl: 30, tr: 30, bl: 0, br: 0 });
-    topStripe.fill(0x6a8783);
-    topStripe.x = 560;
-    topStripe.y = 240;
-
-    // 遊戲結束文字
-    const endText = new Text({
-      text: "遊戲結束",
-      style: {
-        ...titleStyle,
-        fill: 0xffffff,
-      },
-    });
-    endText.anchor.set(0.5);
-    endText.x = 960;
-    endText.y = 280;
-
-    // 分數展示背景
-    const scoreBG = new Graphics();
-    scoreBG.roundRect(0, 0, 400, 120, 20);
-    scoreBG.fill(0xf0f0f0);
-    scoreBG.stroke({ width: 4, color: 0x6a8783 });
-    scoreBG.x = 760;
-    scoreBG.y = 450;
-
-    // 分數標題文字
-    const scoreTitle = new Text({
-      text: `最終分數`,
-      style: {
-        ...infoStyle,
-        fontSize: 36,
-        fill: 0x6a8783,
-      },
-    });
-    scoreTitle.anchor.set(0.5);
-    scoreTitle.x = 960;
-    scoreTitle.y = 480;
-
-    // 實際分數
-    const scoreNumber = new Text({
-      text: `${this.game.score}`,
-      style: {
-        ...infoStyle,
-        fontSize: 48,
-        fill: 0x6a8783,
-        fontWeight: "bold",
-      },
-    });
-    scoreNumber.anchor.set(0.5);
-    scoreNumber.x = 960;
-    scoreNumber.y = 530;
-
-    // 確定按鈕容器
-    const confirmCon = new Container();
-    confirmCon.x = 960;
-    confirmCon.y = 680;
-
-    // 確定按鈕
-    const confirmButton = new Graphics();
-    confirmButton.roundRect(-170, -50, 340, 100, 50);
-    confirmButton.fill(0x6a8783);
-    confirmButton.stroke({ width: 6, color: 0x557571 });
-
-    // 按鈕文字
-    const confirmText = new Text({
-      text: "查看排行榜",
-      style: {
-        ...infoStyle2,
-        fill: 0xffffff,
-      },
-    });
-    confirmText.anchor.set(0.5);
-    // 組合元素
-    confirmCon.addChild(glow, confirmButton, confirmText);
-
-    // 設置互動事件
-    confirmButton.eventMode = "static";
-    confirmButton.cursor = "pointer";
-    confirmButton.on("pointerdown", () => {
-      playSound(gameSound.button);
-      this.game.leaderboard();
-    });
-
-    // 互動動畫
-    confirmButton.on("pointerover", () => {
-      playSound(gameSound.select);
-      gsap.to(confirmButton, {
-        pixi: {
-          tint: 0x7ab5b0,
-          scaleX: 1.05,
-          scaleY: 1.05,
-        },
-        duration: 0.2,
-      });
-      gsap.to(confirmText, {
-        pixi: { scaleX: 1.05, scaleY: 1.05 },
-        duration: 0.2,
-      });
-      gsap.to(glow, {
-        alpha: 0.3,
-        duration: 0.2,
-      });
-    });
-
-    confirmButton.on("pointerout", () => {
-      gsap.to(confirmButton, {
-        pixi: {
-          tint: 0xffffff,
-          scaleX: 1,
-          scaleY: 1,
-        },
-        duration: 0.2,
-      });
-      gsap.to(confirmText, {
-        pixi: { scaleX: 1, scaleY: 1 },
-        duration: 0.2,
-      });
-      gsap.to(glow, {
-        alpha: 0,
-        duration: 0.2,
-      });
-    });
-
-    // 將所有元素添加到場景
-    this.game.sceneContainer.addChild(panel, topStripe, endText, scoreBG, scoreTitle, scoreNumber, confirmCon);
-
-    // 設置初始透明度為0
-    const elements = [panel, topStripe, endText, scoreBG, scoreTitle, scoreNumber, confirmCon];
-    elements.forEach((el) => (el.alpha = 0));
-
-    // 創建依序淡入的動畫序列
-    const timeline = gsap.timeline();
-
-    // 背景面板淡入
-    timeline.to([panel, topStripe], {
-      alpha: 1,
-      duration: 0.3,
-      ease: "power2.out",
-    });
-
-    // 標題淡入
-    timeline.to(
-      endText,
-      {
-        alpha: 1,
-        duration: 0.3,
-        ease: "power2.out",
-      },
-      "-=0.1"
-    );
-
-    // 分數背景和標題淡入
-    timeline.to(
-      [scoreBG, scoreTitle],
-      {
-        alpha: 1,
-        duration: 0.3,
-        ease: "power2.out",
-      },
-      "-=0.1"
-    );
-
-    // 分數彈出動畫
-    timeline.to(scoreNumber, {
-      pixi: {
-        scale: 1,
-        alpha: 1,
-      },
-      duration: 0.5,
-      ease: "back.out(1.7)",
-    });
-
-    // 按鈕彈入動畫
-    timeline.from(confirmCon, {
-      pixi: {
-        y: "+=50",
-        alpha: 0,
-      },
-      duration: 0.5,
-      ease: "back.out(1.7)",
-    });
-
-    return timeline;
-  }
-
   async animateLeaderboard(container, leaderboard, userName) {
     let touchStartY = 0;
     let lastTouchY = 0;
@@ -628,6 +432,68 @@ export class AnimationManager {
       };
 
       requestAnimationFrame(inertialScroll);
+    });
+
+    let startY = 0;
+    let currentScrollY = 0;
+    let isScrolling = false;
+
+    scrollContainer.eventMode = "static";
+
+    scrollContainer.on("touchstart", (e) => {
+      isScrolling = true;
+      startY = e.data.global.y;
+      currentScrollY = scrollContainer.y;
+
+      if (this.currentScrollAnimation) {
+        this.currentScrollAnimation.kill();
+      }
+    });
+
+    scrollContainer.on("touchmove", (e) => {
+      if (!isScrolling) return;
+
+      const currentY = e.data.global.y;
+      const deltaY = currentY - startY;
+      let newY = currentScrollY + deltaY;
+      // 應用邊界
+      const minY = START_Y - maxScroll;
+      const maxY = START_Y;
+      newY = Math.min(maxY, Math.max(minY, newY));
+
+      // 直接更新位置以獲得響應感
+      scrollContainer.y = newY;
+
+      // 更新滾動條
+      const scrollPercentage = (START_Y - newY) / maxScroll;
+      const scrollRange = VIEWPORT_HEIGHT - handleHeight;
+      scrollbarHandle.y = START_Y + scrollRange * scrollPercentage;
+
+      // 更新滾動指示器
+      topIndicator.visible = newY < START_Y;
+      bottomIndicator.visible = newY > minY;
+    });
+
+    scrollContainer.on("touchend", () => {
+      isScrolling = false;
+
+      // 如果超出邊界，應用平滑反彈
+      const minY = START_Y - maxScroll;
+      const maxY = START_Y;
+
+      if (scrollContainer.y > maxY) {
+        gsap.to(scrollContainer, {
+          y: maxY,
+          duration: 0.3,
+          ease: "power2.out",
+        });
+      } else if (scrollContainer.y < minY) {
+        gsap.to(scrollContainer, {
+          y: minY,
+          duration: 0.3,
+          ease: "power2.out",
+        });
+      }
     });
 
     //更新排行榜
