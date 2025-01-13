@@ -9,7 +9,7 @@ import { AnimationManager } from "./animationManager.mjs";
 
 export { Game };
 
-const gameTime = 5;
+const gameTime = 60;
 const gravity = 0.55;
 
 const QUESTION_TYPE = {
