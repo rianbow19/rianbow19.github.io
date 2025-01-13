@@ -308,10 +308,14 @@ class Game {
     this.sceneContainer.addChild(sexualBG, asexualBG);
 
     //說明文字
+    const originalText = `遊戲畫面會隨機出現六種鳳梨梨寶寶及其他水果。
+    鳳梨媽媽在畫面右上每隔10秒變換題目，玩家需依據題目切割相應的鳳梨。
+    切割正確的鳳梨得分，若切到錯誤的鳳梨則扣分，連續答對可獲得更高分數。`;
+    const sexualText = "有性生殖：通過花粉授粉，將不同品種的基因結合，產生新的品種。";
+    const asexualText = "無性生殖：通過莖、芽等營養器官繁殖，產生與母本基因相同的子代。";
+
     const explainText = new Text({
-      text: `遊戲畫面會隨機出現六種鳳梨梨寶寶及其他水果。
-      鳳梨媽媽在畫面右上每隔10秒變換題目，玩家需依據題目切割相應的鳳梨。
-      切割正確的鳳梨得分，若切到錯誤的鳳梨則扣分，連續答對可獲得更高分數。`,
+      text: originalText,
       style: infoStyle,
     });
     explainText.x = 200;
@@ -349,7 +353,7 @@ class Game {
     pineapples.forEach((pineapple) => {
       const nameText = new Text({
         text: pineapple.textureName,
-        style: infoStyle2,
+        style: defaultStyle,
       });
       nameText.anchor.set(0.5);
       nameText.x = pineapple.x;
@@ -372,6 +376,8 @@ class Game {
     this.sceneContainer.addChild(...pineapples);
 
     //鳳梨媽媽容器
+    let viewState = 0;
+
     this.sceneContainer.addChild(this.pineMomCon);
     this.pineMomCon.x = 1600;
     this.pineMomCon.y = 280;
@@ -382,22 +388,34 @@ class Game {
     this.pineMomCon.off("pointerdown");
     this.pineMomCon.on("pointerdown", () => {
       playSound("button");
-      if (this.currentQuestion === QUESTION_TYPE.SEXUAL) {
-        this.currentQuestion = QUESTION_TYPE.ASEXUAL;
-        sexualBG.alpha = 0;
-        asexualBG.alpha = 0.5;
-        sexualPine.nameText = "";
-        this.animationManager.stopWaveAnimation();
-        this.animationManager.animateInWave(asexualPine);
-      } else {
-        this.currentQuestion = QUESTION_TYPE.SEXUAL;
-        sexualBG.alpha = 0.5;
-        asexualBG.alpha = 0;
-        asexualPine.nameText = "";
-        this.animationManager.stopWaveAnimation();
-        this.animationManager.animateInWave(sexualPine);
+
+      viewState = (viewState + 1) % 3;
+
+      switch (viewState) {
+        case 0:
+          this.questionText.text = "點擊查看";
+          explainText.text = originalText;
+          sexualBG.alpha = 0;
+          asexualBG.alpha = 0;
+          this.animationManager.stopWaveAnimation();
+          break;
+        case 1:
+          this.questionText.text = "有性生殖";
+          explainText.text = sexualText;
+          sexualBG.alpha = 0.5;
+          asexualBG.alpha = 0;
+          this.animationManager.stopWaveAnimation();
+          this.animationManager.animateInWave(sexualPine);
+          break;
+        case 2:
+          this.questionText.text = "無性生殖";
+          explainText.text = asexualText;
+          sexualBG.alpha = 0;
+          asexualBG.alpha = 0.5;
+          this.animationManager.stopWaveAnimation();
+          this.animationManager.animateInWave(asexualPine);
+          break;
       }
-      this.questionText.text = this.currentQuestion;
     });
     this.pineMomCon.on("pointerover", () => {
       this.pineMomCon.scale.set(1.01);
