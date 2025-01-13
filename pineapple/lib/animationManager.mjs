@@ -165,62 +165,7 @@ export class AnimationManager {
     }
   }
 
-  async animateLeaderboard(container, leaderboard, userName) {
-    let touchStartY = 0;
-    let scrollY = 0;
-    let currentY = 0;
-    let velocity = 0;
-    let isScrolling = false;
-
-    const leaderboardContainer = new Container();
-    container.addChild(leaderboardContainer);
-
-    // 添加觸摸事件
-    leaderboardContainer.eventMode = "static";
-
-    leaderboardContainer.on("touchstart", (e) => {
-      isScrolling = true;
-      touchStartY = e.data.global.y;
-      currentY = scrollY;
-      velocity = 0;
-    });
-
-    leaderboardContainer.on("touchmove", (e) => {
-      if (!isScrolling) return;
-
-      const touchCurrentY = e.data.global.y;
-      const delta = touchCurrentY - touchStartY;
-
-      scrollY = currentY + delta;
-
-      // 邊界檢查
-      const minY = -(leaderboardContainer.height - container.height);
-      scrollY = Math.min(0, Math.max(minY, scrollY));
-
-      leaderboardContainer.y = scrollY;
-    });
-
-    leaderboardContainer.on("touchend", () => {
-      isScrolling = false;
-
-      // 添加慣性滾動
-      const scroll = () => {
-        if (Math.abs(velocity) > 0.5) {
-          scrollY += velocity;
-          velocity *= 0.95; // 摩擦力
-
-          // 邊界檢查
-          const minY = -(leaderboardContainer.height - container.height);
-          scrollY = Math.min(0, Math.max(minY, scrollY));
-
-          leaderboardContainer.y = scrollY;
-          requestAnimationFrame(scroll);
-        }
-      };
-
-      requestAnimationFrame(scroll);
-    });
-
+  async animateLeaderboard(sceneContainer, leaderboard, userName) {
     const VIEWPORT_WIDTH = 1000;
     const VIEWPORT_HEIGHT = 600;
     const ENTRY_HEIGHT = 100;
@@ -232,21 +177,21 @@ export class AnimationManager {
     bgRect.roundRect(START_X, START_Y, VIEWPORT_WIDTH, VIEWPORT_HEIGHT, 20);
     bgRect.fill(0xffffff);
     bgRect.stroke({ width: 5, color: 0x6a8783 });
-    container.addChild(bgRect);
+    sceneContainer.addChild(bgRect);
 
     const mask = new Graphics();
     mask.roundRect(0, 0, VIEWPORT_WIDTH, VIEWPORT_HEIGHT, 20);
     mask.fill(0xffffff);
     mask.x = START_X;
     mask.y = START_Y;
-    container.addChild(mask);
+    sceneContainer.addChild(mask);
 
     //建立滾動容器
     const scrollContainer = new Container();
     scrollContainer.x = START_X;
     scrollContainer.y = START_Y;
     scrollContainer.mask = mask;
-    container.addChild(scrollContainer);
+    sceneContainer.addChild(scrollContainer);
 
     const contentHeight = leaderboard.data.length * ENTRY_HEIGHT;
     const maxScroll = Math.max(0, contentHeight - VIEWPORT_HEIGHT);
@@ -262,7 +207,7 @@ export class AnimationManager {
     scrollbarHandle.x = START_X + VIEWPORT_WIDTH + 10;
     scrollbarHandle.y = START_Y;
 
-    container.addChild(scrollbarBG, scrollbarHandle);
+    sceneContainer.addChild(scrollbarBG, scrollbarHandle);
 
     //滾動條事件
     const topIndicator = new Graphics();
@@ -285,7 +230,7 @@ export class AnimationManager {
     bottomIndicator.y = START_Y + VIEWPORT_HEIGHT + 10;
     bottomIndicator.visible = false;
 
-    container.addChild(topIndicator, bottomIndicator);
+    sceneContainer.addChild(topIndicator, bottomIndicator);
 
     //建立標題
     const headerBG = new Graphics();
@@ -307,7 +252,7 @@ export class AnimationManager {
     scoreHeader.x = START_X + 720;
     scoreHeader.y = START_Y - 90;
 
-    container.addChild(headerBG, rankHeader, nameHeader, scoreHeader);
+    sceneContainer.addChild(headerBG, rankHeader, nameHeader, scoreHeader);
 
     //建立排行榜資料條目
     const createEntryContainer = (player, index, isAnimated = false) => {
