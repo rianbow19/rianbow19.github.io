@@ -1,7 +1,7 @@
 import { Container, Sprite, Texture, Text, Graphics } from "./pixi.mjs";
 import { TextInput } from "./input.mjs";
 import { leaderboard } from "./leaderboardData.mjs";
-import { gsap } from "../node_modules/gsap/index.js";
+import { gsap } from "../gsap_src/index.js";
 import { HitEventManager } from "./hitEventManager.mjs";
 import { playSound, playBGM, stopBGM } from "./soundManager.mjs";
 import { titleStyle, infoStyle, infoStyle2, defaultStyle, scoreStyle, comboStyle, infoStyle3 } from "./textStyle.mjs";

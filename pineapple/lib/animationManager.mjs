@@ -1,6 +1,6 @@
 import { Text, Container, Graphics } from "./pixi.mjs";
-import { gsap } from "../node_modules/gsap/index.js";
-import { gdStyle, infoStyle, infoStyle2, titleStyle, defaultStyle } from "./textStyle.mjs";
+import { gsap } from "../gsap_src/index.js";
+import { gdStyle, infoStyle2, defaultStyle } from "./textStyle.mjs";
 
 export class AnimationManager {
   constructor(game) {
@@ -167,10 +167,10 @@ export class AnimationManager {
 
   async animateLeaderboard(container, leaderboard, userName) {
     let touchStartY = 0;
-    let lastTouchY = 0;
-    let isDragging = false;
+    let scrollY = 0;
+    let currentY = 0;
     let velocity = 0;
-    let lastTime = 0;
+    let isScrolling = false;
 
     const leaderboardContainer = new Container();
     container.addChild(leaderboardContainer);
@@ -386,115 +386,6 @@ export class AnimationManager {
         this.scrollThrottleTimeout = null;
       }, 16);
     };
-    // 添加觸摸事件處理程序到 scrollContainer
-    scrollContainer.eventMode = "static";
-    scrollContainer.on("touchstart", (e) => {
-      isDragging = true;
-      touchStartY = e.data.global.y;
-      lastTouchY = touchStartY;
-      lastTime = Date.now();
-      velocity = 0;
-
-      if (this.currentScrollAnimation) {
-        this.currentScrollAnimation.kill();
-      }
-    });
-
-    scrollContainer.on("touchmove", (e) => {
-      if (!isDragging) return;
-
-      const currentY = e.data.global.y;
-      const deltaY = lastTouchY - currentY;
-      const newScroll = currentScroll + deltaY;
-
-      // 計算速度
-      const currentTime = Date.now();
-      const timeElapsed = currentTime - lastTime;
-      velocity = deltaY / timeElapsed;
-
-      lastTouchY = currentY;
-      lastTime = currentTime;
-
-      updateScroll(newScroll);
-    });
-
-    scrollContainer.on("touchend", () => {
-      isDragging = false;
-
-      // 應用慣性滾動
-      const inertialScroll = () => {
-        if (Math.abs(velocity) > 0.01) {
-          velocity *= 0.95; // 應用摩擦力
-          const newScroll = currentScroll + velocity * 16; // 每幀16ms
-          updateScroll(newScroll);
-          requestAnimationFrame(inertialScroll);
-        }
-      };
-
-      requestAnimationFrame(inertialScroll);
-    });
-
-    let startY = 0;
-    let currentScrollY = 0;
-    let isScrolling = false;
-
-    scrollContainer.eventMode = "static";
-
-    scrollContainer.on("touchstart", (e) => {
-      isScrolling = true;
-      startY = e.data.global.y;
-      currentScrollY = scrollContainer.y;
-
-      if (this.currentScrollAnimation) {
-        this.currentScrollAnimation.kill();
-      }
-    });
-
-    scrollContainer.on("touchmove", (e) => {
-      if (!isScrolling) return;
-
-      const currentY = e.data.global.y;
-      const deltaY = currentY - startY;
-      let newY = currentScrollY + deltaY;
-      // 應用邊界
-      const minY = START_Y - maxScroll;
-      const maxY = START_Y;
-      newY = Math.min(maxY, Math.max(minY, newY));
-
-      // 直接更新位置以獲得響應感
-      scrollContainer.y = newY;
-
-      // 更新滾動條
-      const scrollPercentage = (START_Y - newY) / maxScroll;
-      const scrollRange = VIEWPORT_HEIGHT - handleHeight;
-      scrollbarHandle.y = START_Y + scrollRange * scrollPercentage;
-
-      // 更新滾動指示器
-      topIndicator.visible = newY < START_Y;
-      bottomIndicator.visible = newY > minY;
-    });
-
-    scrollContainer.on("touchend", () => {
-      isScrolling = false;
-
-      // 如果超出邊界，應用平滑反彈
-      const minY = START_Y - maxScroll;
-      const maxY = START_Y;
-
-      if (scrollContainer.y > maxY) {
-        gsap.to(scrollContainer, {
-          y: maxY,
-          duration: 0.3,
-          ease: "power2.out",
-        });
-      } else if (scrollContainer.y < minY) {
-        gsap.to(scrollContainer, {
-          y: minY,
-          duration: 0.3,
-          ease: "power2.out",
-        });
-      }
-    });
 
     //更新排行榜
     leaderboard.data.forEach((player, index) => {
@@ -549,9 +440,6 @@ export class AnimationManager {
       }
       if (bgRect.eventMode === "static") {
         bgRect.removeAllListeners();
-      }
-      if (scrollContainer.eventMode === "static") {
-        scrollContainer.removeAllListeners();
       }
     };
 
