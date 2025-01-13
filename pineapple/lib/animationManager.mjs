@@ -674,7 +674,7 @@ export class AnimationManager {
   async fadeElement(element, newText = null) {
     await gsap.to(element, {
       alpha: 0,
-      duration: 0.3,
+      duration: 0.25,
       ease: "power2.out",
     });
 
@@ -684,7 +684,7 @@ export class AnimationManager {
 
     await gsap.to(element, {
       alpha: 1,
-      duration: 0.3,
+      duration: 0.25,
       ease: "power2.in",
     });
   }

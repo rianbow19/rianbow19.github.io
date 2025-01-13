@@ -53,10 +53,10 @@ const infoStyle2 = new TextStyle({
 
 const infoStyle3 = new TextStyle({
   fontFamily: "Microsoft JhengHei, PingFang TC, sans-serif",
-  fontSize: 24,
+  fontSize: 36,
   fontWeight: "bold",
   fill: "#F0FFF0",
-  stroke: { color: "#3C3C3C", width: 15, join: "round" },
+  stroke: { color: "#3C3C3C", width: 10, join: "round" },
 });
 
 const fill = new FillGradient(0, 0, 0, 10 * 1.7 * 7);

@@ -209,6 +209,7 @@ class Game {
         startButton.removeAllListeners();
         startButton.eventMode = "static";
         startButton.cursor = "pointer";
+        startText.tint = 0xffffff;
 
         startButton.on("pointerdown", () => {
           if (this.time === gameTime) {
@@ -289,8 +290,16 @@ class Game {
     const originalText = `遊戲畫面會隨機出現六種鳳梨梨寶寶及其他水果。
     鳳梨媽媽在畫面右上每隔10秒變換題目，玩家需依據題目切割相應的鳳梨。
     切割正確的鳳梨得分，若切到錯誤的鳳梨則扣分，連續答對可獲得更高分數。`;
-    const sexualText = "有性生殖：通過花粉授粉，將不同品種的基因結合，產生新的品種。";
-    const asexualText = "無性生殖：通過莖、芽等營養器官繁殖，產生與母本基因相同的子代。";
+
+    const sexualText = `有性生殖：
+    通過花粉授粉，將不同品種鳳梨媽媽的基因結合，產生新的鳳梨寶寶。
+    - 後代基因組合不同，具有更強的適應能力。
+    - 需要授粉過程（由風、昆蟲或人工完成）。`;
+
+    const asexualText = `無性生殖：
+    通過莖、芽等營養器官繁殖，產生與鳳梨媽媽相同的鳳梨寶寶。
+    - 鳳梨寶寶基因與鳳梨媽媽完全一致。
+    - 繁殖速度快，品質穩定，能在短時間內大量繁殖。`;
 
     const explainText = new Text({
       text: originalText,
@@ -364,8 +373,8 @@ class Game {
     const nextBtn = new Sprite(Texture.from("next.png"));
     nextBtn.scale.set(0.2);
     nextBtn.anchor.set(0.5);
-    nextBtn.x = 1800;
-    nextBtn.y = 1000;
+    nextBtn.x = 1720;
+    nextBtn.y = 940;
     this.sceneContainer.addChild(nextBtn);
 
     nextBtn.cursor = "pointer";
@@ -376,14 +385,14 @@ class Game {
 
       switch (viewState) {
         case 0:
-          await this.animationManager.fadeElement(this.questionText, "遊戲規則");
+          this.animationManager.fadeElement(this.questionText, "遊戲規則");
           await this.animationManager.fadeElement(explainText, originalText);
           sexualBG.alpha = 0;
           asexualBG.alpha = 0;
           this.animationManager.stopWaveAnimation();
           break;
         case 1:
-          await this.animationManager.fadeElement(this.questionText, "有性生殖");
+          this.animationManager.fadeElement(this.questionText, "有性生殖");
           await this.animationManager.fadeElement(explainText, sexualText);
           sexualBG.alpha = 0.5;
           asexualBG.alpha = 0;
@@ -391,7 +400,7 @@ class Game {
           this.animationManager.animateInWave(sexualPine);
           break;
         case 2:
-          await this.animationManager.fadeElement(this.questionText, "無性生殖");
+          this.animationManager.fadeElement(this.questionText, "無性生殖");
           await this.animationManager.fadeElement(explainText, asexualText);
           sexualBG.alpha = 0;
           asexualBG.alpha = 0.5;
@@ -401,11 +410,9 @@ class Game {
       }
     });
     nextBtn.on("pointerover", () => {
-      nextBtn.scale.set(0.22);
       nextBtn.tint = 0xffffff;
     });
     nextBtn.on("pointerout", () => {
-      nextBtn.scale.set(0.2);
       nextBtn.tint = 0xb8b8b8;
     });
 
@@ -415,7 +422,7 @@ class Game {
     closeBtn.cursor = "pointer";
     closeBtn.scale.set(0.2);
     closeBtn.anchor.set(0.5);
-    closeBtn.x = 1700;
+    closeBtn.x = 1720;
     closeBtn.y = 80;
     closeBtn.tint = 0xb8b8b8;
     closeBtn.on("pointerdown", () => {
@@ -423,11 +430,9 @@ class Game {
       this.startTitle();
     });
     closeBtn.on("pointerover", () => {
-      closeBtn.scale.set(0.22);
       closeBtn.tint = 0xffffff;
     });
     closeBtn.on("pointerout", () => {
-      closeBtn.scale.set(0.2);
       closeBtn.tint = 0xb8b8b8;
     });
 
