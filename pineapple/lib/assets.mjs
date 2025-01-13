@@ -14,8 +14,8 @@ const resource = [
   "鳳梨媽媽.png",
   "標題.png",
   "BG.png",
-  "bookBG.png",
   "close.png",
+  "next.png",
 ];
 
 class AssetsLoader {

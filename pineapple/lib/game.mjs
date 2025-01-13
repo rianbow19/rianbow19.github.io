@@ -83,30 +83,8 @@ class Game {
     this.startTitle();
   }
 
-  async fadeOutScene() {
-    return new Promise((resolve) => {
-      gsap.to(this.sceneContainer, {
-        alpha: 0,
-        duration: 0.5,
-        ease: "power2.inOut",
-        onComplete: resolve,
-      });
-    });
-  }
-
-  async fadeInScene() {
-    return new Promise((resolve) => {
-      gsap.to(this.sceneContainer, {
-        alpha: 1,
-        duration: 0.5,
-        ease: "power2.inOut",
-        onComplete: resolve,
-      });
-    });
-  }
-
   async startTitle() {
-    await this.fadeOutScene();
+    await this.animationManager.fadeOutScene(this.sceneContainer);
     this.sceneContainer.removeChildren();
 
     this.score = 0;
@@ -260,11 +238,11 @@ class Game {
     };
     this.inputBox.domInput.addEventListener("input", this.inputListener);
 
-    await this.fadeInScene();
+    await this.animationManager.fadeInScene(this.sceneContainer);
   }
 
   async bookPage() {
-    await this.fadeOutScene();
+    await this.animationManager.fadeOutScene(this.sceneContainer);
     this.sceneContainer.removeChildren();
 
     const BG1 = new Graphics();
@@ -391,35 +369,39 @@ class Game {
     this.sceneContainer.addChild(this.pineMomCon);
     this.pineMomCon.x = 1600;
     this.pineMomCon.y = 280;
-    this.questionText.text = "點擊查看";
+    this.questionText.text = "遊戲規則";
 
-    this.pineMomCon.eventMode = "static";
-    this.pineMomCon.cursor = "pointer";
-    this.pineMomCon.off("pointerdown");
-    this.pineMomCon.on("pointerdown", () => {
+    //下一頁按鈕
+    const nextBtn = new Sprite(Texture.from("next.png"));
+    nextBtn.scale.set(0.2);
+    nextBtn.anchor.set(0.5);
+    nextBtn.x = 1800;
+    nextBtn.y = 1000;
+    nextBtn.cursor = "pointer";
+    nextBtn.eventMode = "static";
+    nextBtn.on("pointerdown", async () => {
       playSound("button");
-
       viewState = (viewState + 1) % 3;
 
       switch (viewState) {
         case 0:
-          this.questionText.text = "點擊查看";
-          explainText.text = originalText;
+          await this.animationManager.fadeElement(this.questionText, "遊戲規則");
+          await this.animationManager.fadeElement(explainText, originalText);
           sexualBG.alpha = 0;
           asexualBG.alpha = 0;
           this.animationManager.stopWaveAnimation();
           break;
         case 1:
-          this.questionText.text = "有性生殖";
-          explainText.text = sexualText;
+          await this.animationManager.fadeElement(this.questionText, "有性生殖");
+          await this.animationManager.fadeElement(explainText, sexualText);
           sexualBG.alpha = 0.5;
           asexualBG.alpha = 0;
           this.animationManager.stopWaveAnimation();
           this.animationManager.animateInWave(sexualPine);
           break;
         case 2:
-          this.questionText.text = "無性生殖";
-          explainText.text = asexualText;
+          await this.animationManager.fadeElement(this.questionText, "無性生殖");
+          await this.animationManager.fadeElement(explainText, asexualText);
           sexualBG.alpha = 0;
           asexualBG.alpha = 0.5;
           this.animationManager.stopWaveAnimation();
@@ -427,13 +409,11 @@ class Game {
           break;
       }
     });
-    this.pineMomCon.on("pointerover", () => {
-      this.pineMomCon.scale.set(1.01);
-      this.questBG.tint = 0x01b468;
+    nextBtn.on("pointerover", () => {
+      nextBtn.scale.set(0.22);
     });
-    this.pineMomCon.on("pointerout", () => {
-      this.pineMomCon.scale.set(1);
-      this.questBG.tint = 0xffffff;
+    nextBtn.on("pointerout", () => {
+      nextBtn.scale.set(0.2);
     });
 
     //關閉按鈕
@@ -460,7 +440,7 @@ class Game {
 
     this.sceneContainer.addChild(closeBtn);
 
-    await this.fadeInScene();
+    await this.animationManager.fadeInScene(this.sceneContainer);
   }
 
   spawnRandomObject() {
@@ -694,7 +674,7 @@ class Game {
       return;
     }
     this.isGameRunning = true;
-    await this.fadeOutScene();
+    await this.animationManager.fadeOutScene(this.sceneContainer);
 
     // 清理之前的定時器
     if (this.gameIntervals) {
