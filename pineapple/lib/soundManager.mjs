@@ -8,7 +8,7 @@ const initAudioContext = () => {
     if (!audioContext) {
       audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
-      // iOS unlock
+      // iOS 解鎖音訊
       const unlockAudio = () => {
         if (audioContext.state === "suspended") {
           audioContext.resume().then(resolve);
@@ -20,7 +20,7 @@ const initAudioContext = () => {
 
       document.addEventListener("touchstart", unlockAudio, { once: true });
 
-      // If context is already running, resolve immediately
+      // 如果音訊上下文已經在運行，立即解析
       if (audioContext.state === "running") {
         resolve();
       }
@@ -76,10 +76,10 @@ export const gameSound = {
 let bgmSource = null;
 let bgmGainNode = null;
 
-// BGM control functions
+// BGM 控制函數
 export const playBGM = async () => {
   if (!audioContext) await initAudioContext();
-  if (bgmSource) return; // Already playing
+  if (bgmSource) return; // 已經在播放
 
   const buffer = await loadSound(gameSound.robotCityBGM);
   bgmSource = audioContext.createBufferSource();
@@ -87,7 +87,7 @@ export const playBGM = async () => {
 
   bgmSource.buffer = buffer;
   bgmSource.loop = true;
-  bgmGainNode.gain.value = volume * 0.3; // Lower volume for BGM
+  bgmGainNode.gain.value = volume * 0.3; // 降低 BGM 音量
 
   bgmSource.connect(bgmGainNode);
   bgmGainNode.connect(audioContext.destination);

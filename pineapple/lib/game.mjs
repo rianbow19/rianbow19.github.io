@@ -350,17 +350,29 @@ class Game {
 
     const pineapples = [...sexualPine, ...asexualPine];
 
+    let viewState = 0;
+
     pineapples.forEach((pineapple) => {
       const nameText = new Text({
         text: pineapple.textureName,
-        style: defaultStyle,
+        style: {
+          ...infoStyle2,
+          fontSize: 24,
+        },
       });
       nameText.anchor.set(0.5);
       nameText.x = pineapple.x;
       nameText.y = pineapple.y + pineapple.height / 2 + 20;
       this.sceneContainer.addChild(nameText);
-
-      pineapple._nameText = nameText;
+      if (viewState === 0) {
+        pineapple._nameText = "";
+      } else if (viewState === 1) {
+        sexualPine._nameText = nameText;
+        asexualPine._nameText = "";
+      } else if (viewState === 2) {
+        sexualPine._nameText = "";
+        asexualPine._nameText = nameText;
+      }
 
       pineapple.eventMode = "static";
       pineapple.on("pointerover", () => {
@@ -376,8 +388,6 @@ class Game {
     this.sceneContainer.addChild(...pineapples);
 
     //鳳梨媽媽容器
-    let viewState = 0;
-
     this.sceneContainer.addChild(this.pineMomCon);
     this.pineMomCon.x = 1600;
     this.pineMomCon.y = 280;
