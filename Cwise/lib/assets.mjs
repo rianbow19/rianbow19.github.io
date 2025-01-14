@@ -24,6 +24,7 @@ const resource = [
   "U型管.png",
   "bin.png",
   "reload.png",
+  "check.png",
 ];
 
 class AssetsLoader {

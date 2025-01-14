@@ -22,12 +22,10 @@ export const scoreStyle = new TextStyle({
   stroke: { color: "#000000", width: 15, join: "round" },
 });
 
-export const comboStyle = new TextStyle({
+export const defaultStyle2 = new TextStyle({
   fontFamily: "Microsoft JhengHei, PingFang TC, sans-serif",
-  fontSize: 80,
-  fontWeight: "bold",
-  fill: "#ffd700",
-  stroke: { color: "#ffffff", width: 15, join: "round" },
+  fontSize: 30,
+  fill: "#000000",
 });
 
 export const infoStyle = new TextStyle({
