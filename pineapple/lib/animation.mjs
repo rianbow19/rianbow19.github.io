@@ -373,10 +373,10 @@ export class AnimationManager {
     // 找到玩家當前分數的位置
     let targetIndex = -1;
 
-    // 1. 先找目前分數
+    // 先找目前分數
     targetIndex = leaderboard.data.findIndex((entry) => entry.name === userName && entry.score === currentScore);
 
-    // 2. 如果沒找到，找相同名字最高分
+    // 如果沒找到，找相同名字最高分
     if (targetIndex === -1) {
       const sameNameEntries = leaderboard.data.filter((entry) => entry.name === userName);
       if (sameNameEntries.length > 0) {

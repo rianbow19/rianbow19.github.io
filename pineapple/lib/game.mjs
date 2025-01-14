@@ -2,10 +2,10 @@ import { Container, Sprite, Texture, Text, Graphics } from "./pixi.mjs";
 import { TextInput } from "./input.mjs";
 import { leaderboard } from "./leaderboardData.mjs";
 import { gsap } from "../gsap_src/index.js";
-import { HitEventManager } from "./hitEventManager.mjs";
+import { HitEventManager } from "./hitEvent.mjs";
 import { playSound, playBGM, stopBGM } from "./soundManager.mjs";
 import { titleStyle, infoStyle, infoStyle2, scoreStyle, comboStyle, infoStyle3 } from "./textStyle.mjs";
-import { AnimationManager } from "./animationManager.mjs";
+import { AnimationManager } from "./animation.mjs";
 
 export { Game };
 
@@ -43,8 +43,8 @@ class Game {
     this.waveTimelines = [];
     this.availableFruits = [];
 
-    this.hitEventManager = new HitEventManager(this);
-    this.animationManager = new AnimationManager(this);
+    this.hitEvent = new HitEventManager(this);
+    this.animation = new AnimationManager(this);
 
     // 取得所有可能的值並隨機選擇一個
     this.currentQuestion = Object.values(QUESTION_TYPE)[Math.floor(Math.random() * Object.values(QUESTION_TYPE).length)];
@@ -84,7 +84,7 @@ class Game {
   }
 
   async startTitle() {
-    await this.animationManager.fadeOutScene(this.sceneContainer);
+    await this.animation.fadeOutScene(this.sceneContainer);
     this.sceneContainer.removeChildren();
 
     this.score = 0;
@@ -239,11 +239,11 @@ class Game {
     };
     this.inputBox.domInput.addEventListener("input", this.inputListener);
 
-    await this.animationManager.fadeInScene(this.sceneContainer);
+    await this.animation.fadeInScene(this.sceneContainer);
   }
 
   async bookPage() {
-    await this.animationManager.fadeOutScene(this.sceneContainer);
+    await this.animation.fadeOutScene(this.sceneContainer);
     this.sceneContainer.removeChildren();
 
     const BG1 = new Graphics();
@@ -385,27 +385,27 @@ class Game {
 
       switch (viewState) {
         case 0:
-          this.animationManager.fadeElement(this.questionText, "遊戲規則");
-          await this.animationManager.fadeElement(explainText, originalText);
+          this.animation.fadeElement(this.questionText, "遊戲規則");
+          await this.animation.fadeElement(explainText, originalText);
           sexualBG.alpha = 0;
           asexualBG.alpha = 0;
-          this.animationManager.stopWaveAnimation();
+          this.animation.stopWaveAnimation();
           break;
         case 1:
-          this.animationManager.fadeElement(this.questionText, "有性生殖");
-          await this.animationManager.fadeElement(explainText, sexualText);
+          this.animation.fadeElement(this.questionText, "有性生殖");
+          await this.animation.fadeElement(explainText, sexualText);
           sexualBG.alpha = 0.5;
           asexualBG.alpha = 0;
-          this.animationManager.stopWaveAnimation();
-          this.animationManager.animateInWave(sexualPine);
+          this.animation.stopWaveAnimation();
+          this.animation.animateInWave(sexualPine);
           break;
         case 2:
-          this.animationManager.fadeElement(this.questionText, "無性生殖");
-          await this.animationManager.fadeElement(explainText, asexualText);
+          this.animation.fadeElement(this.questionText, "無性生殖");
+          await this.animation.fadeElement(explainText, asexualText);
           sexualBG.alpha = 0;
           asexualBG.alpha = 0.5;
-          this.animationManager.stopWaveAnimation();
-          this.animationManager.animateInWave(asexualPine);
+          this.animation.stopWaveAnimation();
+          this.animation.animateInWave(asexualPine);
           break;
       }
     });
@@ -438,7 +438,7 @@ class Game {
 
     this.sceneContainer.addChild(closeBtn);
 
-    await this.animationManager.fadeInScene(this.sceneContainer);
+    await this.animation.fadeInScene(this.sceneContainer);
   }
 
   spawnRandomObject() {
@@ -557,8 +557,8 @@ class Game {
 
       this.score += this.currentScoreValue;
       playSound("correct");
-      this.animationManager.animateCombo(this.comboCount);
-      this.animationManager.animateScoreChange(this.scoreText, this.score);
+      this.animation.animateCombo(this.comboCount);
+      this.animation.animateScoreChange(this.scoreText, this.score);
 
       console.log("正確，+" + this.currentScoreValue + "分");
     } else if (isWrong) {
@@ -567,8 +567,8 @@ class Game {
       this.comboCount = 0;
       this.currentScoreValue = 10;
       this.score = Math.max(this.score - 15, 0);
-      this.animationManager.animateCombo(this.comboCount);
-      this.animationManager.animateScoreChange(this.scoreText, this.score);
+      this.animation.animateCombo(this.comboCount);
+      this.animation.animateScoreChange(this.scoreText, this.score);
       console.log("錯誤，-15分");
     } else {
       playSound("wrong");
@@ -576,8 +576,8 @@ class Game {
       this.comboCount = 0;
       this.currentScoreValue = 10;
       this.score = Math.max(this.score - 10, 0);
-      this.animationManager.animateCombo(this.comboCount);
-      this.animationManager.animateScoreChange(this.scoreText, this.score);
+      this.animation.animateCombo(this.comboCount);
+      this.animation.animateScoreChange(this.scoreText, this.score);
 
       console.log("錯誤，-10分");
     }
@@ -663,7 +663,7 @@ class Game {
     // 播放音效
     playSound("readyGo");
     this.sceneContainer.removeChildren();
-    await this.animationManager.showReadyGoAnimation();
+    await this.animation.showReadyGoAnimation();
 
     setTimeout(() => {
       this.GameStart();
@@ -675,7 +675,7 @@ class Game {
       return;
     }
     this.isGameRunning = true;
-    await this.animationManager.fadeOutScene(this.sceneContainer);
+    await this.animation.fadeOutScene(this.sceneContainer);
 
     // 清理之前的定時器
     if (this.gameIntervals) {
@@ -690,7 +690,7 @@ class Game {
     this.sceneContainer.removeChildren();
     this.objects = [];
 
-    this.sceneContainer.addChild(this.hitEventManager.trailSystem.graphics);
+    this.sceneContainer.addChild(this.hitEvent.trailSystem.graphics);
     this.sceneContainer.addChild(this.pineMomCon);
     this.pineMomCon.x = 1700;
     this.pineMomCon.y = 180;
@@ -777,8 +777,8 @@ class Game {
     };
     document.addEventListener("visibilitychange", this.handleVisibilityChange);
 
-    this.hitEventManager.setupMouseEvents();
-    await this.animationManager.fadeInScene(this.sceneContainer);
+    this.hitEvent.setupMouseEvents();
+    await this.animation.fadeInScene(this.sceneContainer);
   }
 
   // 新增暫停遊戲方法
@@ -840,7 +840,7 @@ class Game {
       Object.values(this.gameIntervals).forEach((interval) => clearInterval(interval));
     }
 
-    await this.animationManager.fadeOutScene(this.sceneContainer);
+    await this.animation.fadeOutScene(this.sceneContainer);
     this.sceneContainer.removeChildren();
     this.isGameRunning = false;
 
@@ -926,18 +926,20 @@ class Game {
     confirmButton.on("pointerover", () => ((confirmButton.tint = 0xe0e0e0), confirmCon.scale.set(1.01)));
     confirmButton.on("pointerout", () => ((confirmButton.tint = 0xffffff), confirmCon.scale.set(1)));
 
-    await this.animationManager.fadeInScene(this.sceneContainer);
+    await this.animation.fadeInScene(this.sceneContainer);
   }
 
   async leaderboard() {
-    await this.animationManager.fadeOutScene(this.sceneContainer);
+    await this.animation.fadeOutScene(this.sceneContainer);
     this.sceneContainer.removeChildren();
 
-    const cleanup = await this.animationManager.animateLeaderboard(this.sceneContainer, leaderboard, this.userName);
+    const cleanup = await this.animation.animateLeaderboard(this.sceneContainer, leaderboard, this.userName);
 
+    //檢查是否在排行榜上
     const isOnLeaderboard = leaderboard.data.some((player) => player.name === this.userName);
     const playerRank = leaderboard.data.findIndex((player) => player.name === this.userName);
 
+    //名次播放音效
     if (playerRank >= 0 && playerRank < 3) {
       playSound("winRank");
     } else if (!isOnLeaderboard) {
@@ -991,27 +993,26 @@ class Game {
       retryCon.scale.set(1);
     });
 
-    await this.animationManager.fadeInScene(this.sceneContainer);
+    await this.animation.fadeInScene(this.sceneContainer);
   }
 
   update(delta) {
     //確認開始遊戲
     if (!this.timeText) return;
 
-    if (this.hitEventManager.mouseState.isDown) {
-      const pressDuration = Date.now() - this.hitEventManager.mouseState.pressStartTime;
-      if (pressDuration > this.hitEventManager.mouseState.MAX_PRESS_DURATION) {
-        this.hitEventManager.mouseState.isDown = false;
-        this.hitEventManager.mouseState.pressStartTime = 0;
-        this.hitEventManager.endCurrentTrailLine();
+    if (this.hitEvent.mouseState.isDown) {
+      const pressDuration = Date.now() - this.hitEvent.mouseState.pressStartTime;
+      if (pressDuration > this.hitEvent.mouseState.MAX_PRESS_DURATION) {
+        this.hitEvent.mouseState.isDown = false;
+        this.hitEvent.mouseState.pressStartTime = 0;
+        this.hitEvent.endCurrentTrailLine();
       }
     }
 
-    this.hitEventManager.drawTrailLines();
+    this.hitEvent.drawTrailLines();
 
     //更新時間分數顯示
     this.timeText.text = `時間: ${this.time}`;
-    //this.scoreText.text = `分數: ${this.score}`;
     this.questionText.text = this.currentQuestion;
     this.questBG.tint = this.currentQuestion === QUESTION_TYPE.SEXUAL ? 0x779938 : 0xffffff;
 
