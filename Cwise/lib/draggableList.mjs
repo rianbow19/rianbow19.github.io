@@ -4,6 +4,7 @@ import { listStyle } from "./textStyle.mjs";
 export class DraggableList {
   constructor(images, itemsPerPage = 5, selectedIndices = null) {
     this.container = new Container();
+
     this.allImages = images; // 儲存所有圖片
     this.images = selectedIndices ? selectedIndices.map((index) => images[index]) : images;
     this.itemsPerPage = itemsPerPage;
@@ -22,6 +23,9 @@ export class DraggableList {
     this.selectedSceneItem = null;
     // 追踪刪除按鈕
     this.deleteButton = null;
+
+    this.sceneItemsContainer = new Container();
+    this.container.addChild(this.sceneItemsContainer);
 
     this.init();
   }
@@ -42,6 +46,7 @@ export class DraggableList {
     this.createBackground();
     this.createPageButtons();
     this.createItems();
+    this.container.addChild(this.sceneItemsContainer);
   }
 
   createBackground() {
@@ -202,11 +207,18 @@ export class DraggableList {
     container.alpha = 1;
 
     if (this.draggedSprite) {
-      // 在放開時創建新的場景項目
-      const position = event.getLocalPosition(this.container);
-      const sceneItem = this.createSceneItem(this.draggedSprite.imagePath, position);
+      // 獲取場景容器的縮放值
+      const sceneScale = this.sceneItemsContainer.parent.scale.x;
+
+      // 計算考慮縮放後的位置
+      const position = event.getLocalPosition(this.sceneItemsContainer);
+      const sceneItem = this.createSceneItem(this.draggedSprite.imagePath, {
+        x: position.x,
+        y: position.y,
+      });
+
       this.sceneItems.push(sceneItem);
-      this.container.addChild(sceneItem);
+      this.sceneItemsContainer.addChild(sceneItem);
 
       // 移除拖動的預覽精靈
       this.container.removeChild(this.draggedSprite);
@@ -281,14 +293,12 @@ export class DraggableList {
     this.selectionBorder = this.createSelectionBorder(sprite);
     this.selectionBorder.x = sceneContainer.x;
     this.selectionBorder.y = sceneContainer.y;
-    this.container.addChild(this.selectionBorder);
-
-    // 將選中框放在容器的底層，這樣不會遮擋物件
-    this.container.setChildIndex(this.selectionBorder, this.container.children.indexOf(sceneContainer));
+    this.sceneItemsContainer.addChild(this.selectionBorder);
 
     // 創建並添加刪除按鈕
     this.deleteButton = new Sprite(Texture.from("bin.png"));
     this.deleteButton.anchor.set(0.5);
+    this.deleteButton.scale.set(0.2);
     this.deleteButton.scale.set(0.13);
     this.deleteButton.x = sceneContainer.x + sceneContainer.children[0].width / 2;
     this.deleteButton.y = sceneContainer.y - sceneContainer.children[0].height / 2 - 40;
@@ -299,7 +309,7 @@ export class DraggableList {
     this.deleteButton.on("click", () => this.deleteSceneItem(sceneContainer));
     this.deleteButton.on("tap", () => this.deleteSceneItem(sceneContainer));
 
-    this.container.addChild(this.deleteButton);
+    this.sceneItemsContainer.addChild(this.deleteButton);
   }
 
   // 刪除場景項目
@@ -310,18 +320,18 @@ export class DraggableList {
       this.sceneItems.splice(index, 1);
     }
 
-    // 從顯示列表中移除
-    this.container.removeChild(sceneContainer);
+    // 從場景物件容器中移除
+    this.sceneItemsContainer.removeChild(sceneContainer);
 
     // 移除刪除按鈕
     if (this.deleteButton) {
-      this.container.removeChild(this.deleteButton);
+      this.sceneItemsContainer.removeChild(this.deleteButton);
       this.deleteButton = null;
     }
 
     // 移除選中框
     if (this.selectionBorder) {
-      this.container.removeChild(this.selectionBorder);
+      this.sceneItemsContainer.removeChild(this.selectionBorder);
       this.selectionBorder = null;
     }
 
@@ -334,18 +344,19 @@ export class DraggableList {
 
     // 如果有刪除按鈕和選中框，先移除它們
     if (this.deleteButton) {
-      this.container.removeChild(this.deleteButton);
+      this.sceneItemsContainer.removeChild(this.deleteButton);
       this.deleteButton = null;
     }
     if (this.selectionBorder) {
-      this.container.removeChild(this.selectionBorder);
+      this.sceneItemsContainer.removeChild(this.selectionBorder);
       this.selectionBorder = null;
     }
 
     this.draggedSceneItem = container;
     container.alpha = 0.8;
 
-    const localPos = event.getLocalPosition(container.parent);
+    // 考慮縮放因素計算偏移量
+    const localPos = event.getLocalPosition(this.sceneItemsContainer);
     this.dragOffset = {
       x: container.x - localPos.x,
       y: container.y - localPos.y,
@@ -362,7 +373,8 @@ export class DraggableList {
   onSceneItemDragMove(event) {
     if (!this.draggedSceneItem) return;
 
-    const newPosition = event.getLocalPosition(this.container);
+    // 使用相對於場景容器的位置
+    const newPosition = event.getLocalPosition(this.sceneItemsContainer);
     this.draggedSceneItem.x = newPosition.x + this.dragOffset.x;
     this.draggedSceneItem.y = newPosition.y + this.dragOffset.y;
   }
@@ -386,5 +398,11 @@ export class DraggableList {
     const maxPage = Math.ceil(this.images.length / this.itemsPerPage) - 1;
     this.upButton.visible = this.currentPage > 0;
     this.downButton.visible = this.currentPage < maxPage;
+  }
+
+  reset() {
+    this.container.removeChildren();
+    this.sceneItemsContainer.removeChildren();
+    this.init();
   }
 }

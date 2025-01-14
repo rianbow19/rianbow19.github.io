@@ -2,7 +2,7 @@ import { Color, FillGradient, TextStyle } from "./pixi.mjs";
 
 export const defaultStyle = new TextStyle({
   fontFamily: "Microsoft JhengHei, PingFang TC, sans-serif",
-  fontSize: 45,
+  fontSize: 30,
   fontWeight: "bold",
   fill: "#000000",
 });
