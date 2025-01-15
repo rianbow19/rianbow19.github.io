@@ -1,8 +1,9 @@
 import { AnimationManager } from "./animation.mjs";
-import { DraggableList } from "./draggableList.mjs";
+import { ItemsList } from "./itemsList.mjs";
 import { DropdownMenu } from "./dropdownMenu.mjs";
 import { Container, Graphics, Sprite, Texture, Text } from "./pixi.mjs";
 import { defaultStyle, defaultStyle2, listStyle, scoreStyle } from "./textStyle.mjs";
+import { ItemsCanvas } from "./itemsCanvas.mjs";
 
 export { Game };
 class Game {
@@ -25,6 +26,7 @@ class Game {
       "鋅銅電池組合.png",
     ];
     this.isZoomedIn = false;
+    this.itemCanvas = new ItemsCanvas();
 
     this.animation = new AnimationManager(this);
 
@@ -44,6 +46,10 @@ class Game {
 
     this.reloadbtn.eventMode = "static";
     this.reloadbtn.cursor = "pointer";
+
+    this.reloadbtn.on("pointerup", () => {
+      this.itemCanvas.reset();
+    });
 
     this.reloadbtn.on("pointerover", () => {
       this.reloadbtn.scale.set(0.163);
@@ -279,18 +285,15 @@ class Game {
     this.UIContainer.addChild(this.ionCon);
     this.UIContainer.addChild(this.scaleUpCon);
 
-    const draggableList = new DraggableList(
+    const draggableList = new ItemsList(
       this.imageList,
+      this.itemCanvas,
       5, //項目數
       [0, 1, 2, 3, 4, 5] // 選定的索引
     );
 
     this.UIContainer.addChild(draggableList.container);
-    this.sceneContainer.addChild(draggableList.sceneItemsContainer);
-
-    this.reloadbtn.on("pointerup", () => {
-      draggableList.reset();
-    });
+    this.sceneContainer.addChild(this.itemCanvas.container);
 
     // 模組 1: 電解實驗模組
     this.UIContainer.addChild(this.topicCon);
@@ -379,14 +382,10 @@ class Game {
     this.UIContainer.addChild(this.ionCon);
 
     //所有項目
-    const draggableList = new DraggableList(this.imageList);
+    const draggableList = new ItemsList(this.imageList, this.itemCanvas);
 
     this.UIContainer.addChild(draggableList.container);
-    this.sceneContainer.addChild(draggableList.sceneItemsContainer);
-
-    this.reloadbtn.on("pointerup", () => {
-      draggableList.reset();
-    });
+    this.sceneContainer.addChild(this.itemCanvas.container);
 
     // 模組 2: 離子分兩派實模組
     this.UIContainer.addChild(this.topicCon);
@@ -413,14 +412,10 @@ class Game {
     this.UIContainer.addChild(this.scaleUpCon);
 
     //所有項目
-    const draggableList = new DraggableList(this.imageList);
+    const draggableList = new ItemsList(this.imageList, this.itemCanvas);
 
     this.UIContainer.addChild(draggableList.container);
-    this.sceneContainer.addChild(draggableList.sceneItemsContainer);
-
-    this.reloadbtn.on("pointerup", () => {
-      draggableList.reset();
-    });
+    this.sceneContainer.addChild(this.itemCanvas.container);
 
     // 模組 3: 鋅銅電池模組
     this.UIContainer.addChild(this.topicCon);
