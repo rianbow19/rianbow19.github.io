@@ -1,5 +1,4 @@
 import { Container, Graphics, Text } from "./pixi.mjs";
-import { gsap } from "../gsap_src/index.js";
 import { defaultStyle2 } from "./textStyle.mjs";
 
 export class DropdownMenu {

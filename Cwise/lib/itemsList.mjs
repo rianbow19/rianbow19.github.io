@@ -16,25 +16,28 @@ export class ItemsList {
 
     this.init();
   }
-
+  // 更新並顯示指定索引的圖片。
   updateDisplayedImages(selectedIndices) {
     this.images = selectedIndices.map((index) => this.allImages[index]);
     this.currentPage = 0;
     this.createItems();
   }
 
+  // 設置每頁顯示的項目數量並重置當前頁面。
   setItemsPerPage(count) {
     this.itemsPerPage = count;
     this.currentPage = 0;
     this.createItems();
   }
 
+  // 初始化背景、頁面切換按鈕以及項目清單。
   init() {
     this.createBackground();
     this.createPageButtons();
     this.createItems();
   }
 
+  // 建立背景圖形。
   createBackground() {
     this.backgroundContainer = new Container();
     this.container.addChild(this.backgroundContainer);
@@ -45,33 +48,41 @@ export class ItemsList {
       background.fill(0xeeeeee);
       background.stroke({ width: 2, color: 0x3c3c3c });
       background.x = 50;
-      background.y = 150 + i * 140;
+      background.y = 180 + i * 140;
       this.backgroundContainer.addChild(background);
     }
   }
 
+  // 建立翻頁按鈕。
   createPageButtons() {
     this.upButton = new Graphics();
+    this.upButton.roundRect(-40, -5, 120, 30, 5);
+    this.upButton.fill(0xffffff);
+    this.upButton.stroke({ width: 2, color: 0x3c3c3c });
     this.upButton.poly([0, 20, 20, 0, 40, 20]);
     this.upButton.fill(0xcccccc);
     this.upButton.x = 90;
-    this.upButton.y = 110;
+    this.upButton.y = 140;
     this.upButton.eventMode = "static";
     this.upButton.cursor = "pointer";
     this.upButton.on("pointerdown", () => this.previousPage());
     this.container.addChild(this.upButton);
 
     this.downButton = new Graphics();
+    this.downButton.roundRect(-40, -6, 120, 30, 5);
+    this.downButton.fill(0xffffff);
+    this.downButton.stroke({ width: 2, color: 0x3c3c3c });
     this.downButton.poly([0, 0, 20, 20, 40, 0]);
     this.downButton.fill(0xcccccc);
     this.downButton.x = 90;
-    this.downButton.y = 850;
+    this.downButton.y = 880;
     this.downButton.eventMode = "static";
     this.downButton.cursor = "pointer";
     this.downButton.on("pointerdown", () => this.nextPage());
     this.container.addChild(this.downButton);
   }
 
+  // 根據目前的頁面和分頁資訊建立或更新項目。
   createItems() {
     this.items.forEach((container) => this.container.removeChild(container));
     this.items = [];
@@ -88,10 +99,11 @@ export class ItemsList {
     this.updatePageButtonsVisibility();
   }
 
+  // 建立可拖動的項目容器。
   createDraggableItem(imagePath, index) {
     const itemContainer = new Container();
     itemContainer.x = 110;
-    itemContainer.y = 210 + index * 140;
+    itemContainer.y = 240 + index * 140;
 
     const sprite = new Sprite(Texture.from(imagePath));
     sprite.anchor.set(0.5);
@@ -119,6 +131,7 @@ export class ItemsList {
     return itemContainer;
   }
 
+  // 建立拖動中的項目容器。
   createDraggedItem(sourceContainer, position) {
     const draggedContainer = new Container();
     draggedContainer.x = position.x;
@@ -135,6 +148,7 @@ export class ItemsList {
     return draggedContainer;
   }
 
+  // 開始拖動項目。
   onDragStart(event, container) {
     if (this.isDragging) return;
 
@@ -151,6 +165,7 @@ export class ItemsList {
     this.isDragging = true;
   }
 
+  // 結束拖動項目。
   onDragEnd(event, container) {
     if (!this.isDragging) return;
 
@@ -167,6 +182,7 @@ export class ItemsList {
     this.isDragging = false;
   }
 
+  // 拖動過程中更新項目位置。
   onDragMove(event) {
     if (!this.isDragging || !this.draggedSprite) return;
 
@@ -175,6 +191,7 @@ export class ItemsList {
     this.draggedSprite.y = newPosition.y;
   }
 
+  // 切換到下一頁。
   nextPage() {
     const maxPage = Math.ceil(this.images.length / this.itemsPerPage) - 1;
     if (this.currentPage < maxPage) {
@@ -183,6 +200,7 @@ export class ItemsList {
     }
   }
 
+  // 切換到上一頁。
   previousPage() {
     if (this.currentPage > 0) {
       this.currentPage--;
@@ -190,12 +208,14 @@ export class ItemsList {
     }
   }
 
+  // 更新頁面按鈕的可見性。
   updatePageButtonsVisibility() {
     const maxPage = Math.ceil(this.images.length / this.itemsPerPage) - 1;
     this.upButton.visible = this.currentPage > 0;
     this.downButton.visible = this.currentPage < maxPage;
   }
 
+  // 重置項目列表。
   reset() {
     this.container.removeChildren();
     this.init();

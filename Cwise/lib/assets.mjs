@@ -26,6 +26,7 @@ const resource = [
   "reload.png",
   "check.png",
   "cut.png",
+  "set.png",
 ];
 
 class AssetsLoader {

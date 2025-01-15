@@ -7,11 +7,17 @@ export const defaultStyle = new TextStyle({
   fill: "#000000",
 });
 
+export const defaultStyle2 = new TextStyle({
+  fontFamily: "Microsoft JhengHei, PingFang TC, sans-serif",
+  fontSize: 30,
+  fill: "#000000",
+});
+
 export const listStyle = new TextStyle({
   fontFamily: "Microsoft JhengHei, PingFang TC, sans-serif",
   fontSize: 18,
   fill: "#272727",
-  stroke: { color: "#ffffff", width: 2, join: "round" },
+  stroke: { color: "#ffffff", width: 4, join: "round" },
 });
 
 export const scoreStyle = new TextStyle({
@@ -20,12 +26,6 @@ export const scoreStyle = new TextStyle({
   fontWeight: "bold",
   fill: "#ffffff",
   stroke: { color: "#000000", width: 15, join: "round" },
-});
-
-export const defaultStyle2 = new TextStyle({
-  fontFamily: "Microsoft JhengHei, PingFang TC, sans-serif",
-  fontSize: 30,
-  fill: "#000000",
 });
 
 export const infoStyle = new TextStyle({
@@ -65,7 +65,7 @@ colors.forEach((number, index) => {
 });
 export const gdStyle = new TextStyle({
   fontFamily: "impact, sans-serif",
-  fontSize: 200,
+  fontSize: 60,
   fontWeight: "bold",
   fill: fill,
   stroke: { color: "#ffffff", width: 15, join: "round" },
