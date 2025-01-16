@@ -27,6 +27,8 @@ const resource = [
   "check.png",
   "cut.png",
   "set.png",
+  "迴紋針.png",
+  "棉花.png",
 ];
 
 class AssetsLoader {
