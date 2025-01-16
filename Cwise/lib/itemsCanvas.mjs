@@ -1,176 +1,215 @@
-import { Container, Sprite, Texture, Graphics } from "./pixi.mjs";
+import { Container, Sprite, Texture, Graphics, Point } from "./pixi.mjs";
 
 export class ItemsCanvas {
   constructor() {
     this.container = new Container();
-    this.sceneItems = []; // 場景中的所有物品
-    this.selectedSceneItem = null; // 當前選中的場景物品
-    this.deleteButton = null; // 刪除按鈕
-    this.selectionBorder = null; // 選中邊框
-    this.draggedSceneItem = null; // 正在拖動的場景物品
-    this.dragOffset = { x: 0, y: 0 }; // 拖動偏移量
+    this.dragTarget = null;
+
+    // 創建拖拽區域
+    this.dragArea = new Graphics().rect(0, 0, 1920, 1080).fill({ color: 0x000000, alpha: 0 });
+    this.dragArea.eventMode = "static";
+    this.dragArea.cursor = "pointer";
+    this.dragArea.zIndex = 9999;
+    this.dragArea.visible = false;
+
+    // 初始化容器
+    this.components = new Container();
+    this.container.addChild(this.dragArea, this.components);
+
+    // 設置拖拽區域事件
+    this.dragArea.on("pointermove", this.onDragMove.bind(this));
+    this.dragArea.on("pointerup", this.onDragEnd.bind(this));
+    this.dragArea.on("pointerupoutside", this.onDragEnd.bind(this));
+
+    // 組件相關
+    this.connectedGroups = [];
+    this.snapDistance = 30;
+
+    // 定義不同物品的連結點配置
+    this.jointConfigs = {
+      "電池.png": [
+        { x: 1, y: 0.5 }, // 右側中間
+        { x: 0, y: 0.5 }, // 左側中間
+      ],
+      "燈泡.png": [
+        { x: 0.5, y: 1 }, // 底部中間
+        { x: 0.8, y: 0.8 }, // 右側下方
+      ],
+      "電線.png": [
+        { x: 1, y: 0.5 }, // 右側中間
+        { x: 0, y: 0.5 }, // 左側中間
+      ],
+      "檢流計.png": [
+        { x: 1, y: 0.5 }, // 右側中間
+        { x: 0, y: 0.5 }, // 左側中間
+      ],
+      "U型管.png": [
+        { x: 1, y: 0.5 }, // 右側中間
+        { x: 0, y: 0.5 }, // 左側中間
+      ],
+      "燒杯.png": [
+        { x: 0.3, y: 0.5 }, // 左側中間
+        { x: 0.8, y: 0.5 }, // 右側中間
+      ],
+      "廣用試紙.png": [
+        { x: 0.5, y: 1 }, // 底部中間
+      ],
+    };
   }
 
-  // 創建場景物品
   createSceneItem(imagePath, position) {
     const sceneContainer = new Container();
-    sceneContainer.x = position.x; // 設置物品的 X 座標
-    sceneContainer.y = position.y; // 設置物品的 Y 座標
+    sceneContainer.x = position.x;
+    sceneContainer.y = position.y;
+    sceneContainer.connectedComponent = -1; // 初始未連接狀態
 
+    // 創建主體
     const sprite = new Sprite(Texture.from(imagePath));
     sprite.anchor.set(0.5);
-    const scale = sprite.texture.width / Math.max(sprite.texture.width, sprite.texture.height); // 設置比例
+    const scale = sprite.texture.width / Math.max(sprite.texture.width, sprite.texture.height);
     sprite.scale.set(scale);
 
+    // 獲取物品類型的連結點配置
+    const jointConfig = this.jointConfigs[imagePath] || [
+      { x: 1, y: 0.5 }, // 預設右側中間
+      { x: 0, y: 0.5 }, // 預設左側中間
+    ];
+
+    // 創建連接點
+    sceneContainer.joints = [];
+    jointConfig.forEach((config) => {
+      const joint = new Graphics().circle(0, 0, 10).fill({ color: 0x00ff00, alpha: 0.5 });
+
+      // 計算連結點位置
+      joint.position.set((config.x - 0.5) * sprite.width, (config.y - 0.5) * sprite.height);
+
+      joint.connected = false;
+      joint.eventMode = "static";
+      joint.cursor = "pointer";
+
+      sceneContainer.joints.push(joint);
+      sceneContainer.addChild(joint);
+    });
+
+    // 添加精靈
     sceneContainer.addChild(sprite);
 
+    // 設置事件
     sceneContainer.eventMode = "static";
     sceneContainer.cursor = "pointer";
+    sceneContainer.on("pointerdown", () => this.onDragStart(sceneContainer));
 
-    sceneContainer.on("click", () => this.onSceneItemClick(sceneContainer));
-    sceneContainer.on("pointerdown", (event) => this.onSceneItemDragStart(event, sceneContainer));
-    sceneContainer.on("pointerup", (event) => this.onSceneItemDragEnd(event));
-    sceneContainer.on("pointerupoutside", (event) => this.onSceneItemDragEnd(event));
-    sceneContainer.on("globalpointermove", (event) => this.onSceneItemDragMove(event));
+    // 添加獲取全局連接點位置的方法
+    sceneContainer.getGlobalJointPositions = () => {
+      return sceneContainer.joints.map((joint) => {
+        const globalPos = sceneContainer.toGlobal(joint.position);
+        return { x: globalPos.x, y: globalPos.y };
+      });
+    };
 
-    this.sceneItems.push(sceneContainer);
-    this.container.addChild(sceneContainer);
-
+    this.components.addChild(sceneContainer);
     return sceneContainer;
   }
 
-  // 創建選中邊框
-  createSelectionBorder(sprite) {
-    const texture = sprite.texture;
-    const padding = 10; // 邊框內邊距
-
-    const baseWidth = texture.orig.width || texture.baseTexture.width; // 紋理寬度
-    const baseHeight = texture.orig.height || texture.baseTexture.height; // 紋理高度
-
-    const width = baseWidth * sprite.scale.x + padding * 2; // 計算邊框寬度
-    const height = baseHeight * sprite.scale.y + padding * 2; // 計算邊框高度
-
-    const border = new Graphics();
-    border.rect(-width / 2, -height / 2, width, height); // 畫矩形作為邊框
-    border.stroke({ width: 4, color: 0xffffff }); // 設置邊框顏色和寬度
-
-    return border;
+  onDragStart(target) {
+    this.dragTarget = target;
+    target.alpha = 0.5;
+    this.dragArea.visible = true;
   }
 
-  // 點擊場景物品時觸發
-  onSceneItemClick(sceneContainer) {
-    if (this.draggedSceneItem) return; // 如果正在拖動，則返回
+  onDragMove(event) {
+    if (this.dragTarget) {
+      const oldPos = { x: this.dragTarget.x, y: this.dragTarget.y };
+      this.dragTarget.parent.toLocal(event.global, null, this.dragTarget.position);
 
-    // 移除已有的刪除按鈕和選中邊框
-    if (this.deleteButton) {
-      this.container.removeChild(this.deleteButton);
-      this.deleteButton = null;
-    }
-    if (this.selectionBorder) {
-      this.container.removeChild(this.selectionBorder);
-      this.selectionBorder = null;
-    }
-
-    // 如果當前物品已選中，再次點擊時取消選中
-    if (this.selectedSceneItem === sceneContainer) {
-      this.selectedSceneItem = null;
-      return;
-    }
-
-    this.selectedSceneItem = sceneContainer; // 設置選中的場景物品
-
-    // 創建選中邊框
-    const sprite = sceneContainer.children[0];
-    this.selectionBorder = this.createSelectionBorder(sprite);
-    this.selectionBorder.x = sceneContainer.x;
-    this.selectionBorder.y = sceneContainer.y;
-    this.container.addChild(this.selectionBorder);
-
-    // 創建刪除按鈕
-    this.deleteButton = new Sprite(Texture.from("bin.png"));
-    this.deleteButton.anchor.set(0.5);
-    this.deleteButton.scale.set(0.13);
-    this.deleteButton.x = sceneContainer.x + sceneContainer.children[0].width / 2;
-    this.deleteButton.y = sceneContainer.y - sceneContainer.children[0].height / 2 - 40;
-
-    this.deleteButton.eventMode = "static";
-    this.deleteButton.cursor = "pointer";
-    this.deleteButton.on("click", () => this.deleteSceneItem(sceneContainer));
-    this.deleteButton.on("tap", () => this.deleteSceneItem(sceneContainer));
-
-    this.container.addChild(this.deleteButton);
-  }
-
-  // 刪除場景物品
-  deleteSceneItem(sceneContainer) {
-    const index = this.sceneItems.indexOf(sceneContainer);
-    if (index > -1) {
-      this.sceneItems.splice(index, 1); // 從場景物品列表中移除
-    }
-
-    this.container.removeChild(sceneContainer); // 從主容器中移除
-
-    // 移除刪除按鈕和選中邊框
-    if (this.deleteButton) {
-      this.container.removeChild(this.deleteButton);
-      this.deleteButton = null;
-    }
-    if (this.selectionBorder) {
-      this.container.removeChild(this.selectionBorder);
-      this.selectionBorder = null;
-    }
-
-    this.selectedSceneItem = null; // 清除選中的物品
-  }
-
-  // 開始拖動場景物品
-  onSceneItemDragStart(event, container) {
-    if (this.draggedSceneItem) return; // 如果已有拖動物品，則返回
-
-    // 移除刪除按鈕和選中邊框
-    if (this.deleteButton) {
-      this.container.removeChild(this.deleteButton);
-      this.deleteButton = null;
-    }
-    if (this.selectionBorder) {
-      this.container.removeChild(this.selectionBorder);
-      this.selectionBorder = null;
-    }
-
-    this.draggedSceneItem = container; // 設置拖動的場景物品
-    container.alpha = 0.8; // 調整透明度
-
-    const localPos = event.getLocalPosition(this.container); // 獲取事件的本地位置
-    this.dragOffset = {
-      x: container.x - localPos.x,
-      y: container.y - localPos.y,
-    }; // 計算拖動偏移量
-  }
-
-  // 結束拖動場景物品
-  onSceneItemDragEnd(event) {
-    if (this.draggedSceneItem) {
-      this.draggedSceneItem.alpha = 1; // 恢復透明度
-      this.draggedSceneItem = null; // 清除拖動的物品
+      // 如果有連接的組件，一起移動
+      if (this.dragTarget.connectedComponent !== -1) {
+        this.components.children.forEach((element) => {
+          if (element !== this.dragTarget && element.connectedComponent === this.dragTarget.connectedComponent) {
+            const dx = this.dragTarget.x - oldPos.x;
+            const dy = this.dragTarget.y - oldPos.y;
+            element.x += dx;
+            element.y += dy;
+          }
+        });
+      }
     }
   }
 
-  // 拖動場景物品時觸發
-  onSceneItemDragMove(event) {
-    if (!this.draggedSceneItem) return; // 如果沒有拖動物品，則返回
-
-    const newPosition = event.getLocalPosition(this.container); // 獲取新的位置
-    this.draggedSceneItem.x = newPosition.x + this.dragOffset.x; // 更新 X 座標
-    this.draggedSceneItem.y = newPosition.y + this.dragOffset.y; // 更新 Y 座標
+  onDragEnd() {
+    if (this.dragTarget) {
+      this.checkAndSnapJoints(this.dragTarget);
+      this.dragArea.visible = false;
+      this.dragTarget.alpha = 1;
+      this.dragTarget = null;
+    }
   }
 
-  // 重置場景
+  checkAndSnapJoints(dragTarget) {
+    const dragTargetJoints = dragTarget.getGlobalJointPositions();
+
+    this.components.children.forEach((element) => {
+      if (element !== dragTarget) {
+        const elementJoints = element.getGlobalJointPositions();
+
+        dragTargetJoints.forEach((dragJoint, dragIdx) => {
+          if (dragTarget.joints[dragIdx].connected) return;
+
+          elementJoints.forEach((elementJoint, elementIdx) => {
+            if (element.joints[elementIdx].connected) return;
+
+            if (this.areJointsOverlapping(dragJoint, elementJoint)) {
+              const midpoint = this.calculateMidpoint(dragJoint, elementJoint);
+
+              // 設置位置
+              const dragTargetLocal = dragTarget.parent.toLocal(midpoint);
+              const dragJointLocal = dragTarget.joints[dragIdx].position;
+              dragTarget.position.set(dragTargetLocal.x - dragJointLocal.x, dragTargetLocal.y - dragJointLocal.y);
+
+              // 更新連接狀態
+              dragTarget.joints[dragIdx].connected = true;
+              element.joints[elementIdx].connected = true;
+              dragTarget.joints[dragIdx].tint = 0x00ff00;
+              element.joints[elementIdx].tint = 0x00ff00;
+
+              // 更新組件組
+              this.updateConnectedComponents(dragTarget, element);
+            }
+          });
+        });
+      }
+    });
+  }
+
+  areJointsOverlapping(joint1Pos, joint2Pos) {
+    const distance = Math.sqrt(Math.pow(joint1Pos.x - joint2Pos.x, 2) + Math.pow(joint1Pos.y - joint2Pos.y, 2));
+    return distance < this.snapDistance;
+  }
+
+  calculateMidpoint(pos1, pos2) {
+    return {
+      x: (pos1.x + pos2.x) / 2,
+      y: (pos1.y + pos2.y) / 2,
+    };
+  }
+
+  updateConnectedComponents(item1, item2) {
+    if (item1.connectedComponent === -1 && item2.connectedComponent === -1) {
+      const newGroup = this.connectedGroups.length;
+      this.connectedGroups.push(newGroup);
+      item1.connectedComponent = newGroup;
+      item2.connectedComponent = newGroup;
+    } else if (item1.connectedComponent === -1) {
+      item1.connectedComponent = item2.connectedComponent;
+    } else if (item2.connectedComponent === -1) {
+      item2.connectedComponent = item1.connectedComponent;
+    }
+  }
+
   reset() {
-    this.container.removeChildren(); // 清空主容器
-    this.sceneItems = []; // 清空場景物品列表
-    this.selectedSceneItem = null; // 清空選中物品
-    this.deleteButton = null; // 清空刪除按鈕
-    this.selectionBorder = null; // 清空選中邊框
-    this.draggedSceneItem = null; // 清空拖動的物品
+    this.components.removeChildren();
+    this.connectedGroups = [];
+    this.dragTarget = null;
+    this.dragArea.visible = false;
   }
 }
