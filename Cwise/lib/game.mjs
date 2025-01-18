@@ -1,4 +1,3 @@
-import { AnimationManager } from "./animation.mjs";
 import { ItemsList } from "./itemsList.mjs";
 import { DropdownMenu } from "./dropdownMenu.mjs";
 import { Container, Graphics, Sprite, Texture, Text } from "./pixi.mjs";

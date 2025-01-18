@@ -1,6 +1,6 @@
 import { Sprite, Texture, Text, Graphics } from "./pixi.mjs";
 import { defaultStyle } from "./textStyle.mjs";
-import { gsap } from "../gsap_src/index.js";
+import { gsap } from "../gsap-public/src/index.js";
 
 class ElectrolysisModule {
   constructor(itemCanvas) {
@@ -17,6 +17,12 @@ class ElectrolysisModule {
     this.components = null;
     this.isAssembled = false;
     this.isAllitem = false;
+
+    //pH試紙檢查
+    this.lastPHCheckTime = 0;
+    this.PHCheckInterval = 500;
+    this.lastPHPaperPosition = null;
+    this.lastBeakerPosition = null;
 
     // 溶液特性配置
     this.solutionProperties = {
@@ -158,6 +164,7 @@ class ElectrolysisModule {
 
   // 開始電解實驗
   startElectrolysis() {
+    this.stopIonAnimation();
     this.resetBulbLight();
 
     if (!this.isAllitem) {
@@ -192,7 +199,7 @@ class ElectrolysisModule {
     this.updateBeakerColor(solutionProps.color);
 
     // 如果有連接廣用試紙，更新其顏色
-    this.handlePHPaperConnection();
+    //this.handlePHPaperConnection();
     this.ionMoving = true;
 
     return true;
@@ -368,7 +375,7 @@ class ElectrolysisModule {
       this.stopIonAnimation(); // 切換溶液時停止離子動畫
       this.updateBeakerColor(this.solutionProperties[solutionName].color);
     }
-    this.handlePHPaperConnection();
+    //this.handlePHPaperConnection();
   }
 
   // 切換離子動畫
@@ -407,6 +414,8 @@ class ElectrolysisModule {
       }
     });
 
+    if (allPoints.length === 0) return;
+
     center.x /= allPoints.length;
     center.y /= allPoints.length;
 
@@ -417,23 +426,30 @@ class ElectrolysisModule {
       return angleB - angleA;
     });
 
-    // 顯示所有離子並對其進行動畫處理
+    // 創建新的動畫
     components.forEach((component) => {
       if (component.ions) {
-        component.ions.forEach((ion) => {
-          ion.visible = true;
+        component.ions.forEach((ion, ionIndex) => {
           if (ion.tween) ion.tween.kill();
 
+          ion.visible = true;
+          // 設置初始位置偏移，讓離子均勻分布在路徑上
+          const initialOffset = ionIndex / component.ions.length;
+          ion.progress = initialOffset;
+
           const tween = gsap.to(ion, {
-            duration: 5,
-            progress: 1,
+            duration: 10,
+            progress: 1 + initialOffset,
             repeat: -1,
             ease: "none",
             onUpdate: () => {
               if (!this.ionMoving) return;
 
-              // 找到路徑中的當前點和下一個點
-              const index = Math.floor(ion.progress * allPoints.length);
+              // 計算實際進度（保持在 0-1 之間）
+              const currentProgress = ion.progress % 1;
+
+              // 計算當前點和下一個點的索引
+              const index = Math.floor(currentProgress * allPoints.length);
               const nextIndex = (index + 1) % allPoints.length;
               const currentPoint = allPoints[index];
               const nextPoint = allPoints[nextIndex];
@@ -442,8 +458,8 @@ class ElectrolysisModule {
               const localCurrent = component.toLocal(currentPoint);
               const localNext = component.toLocal(nextPoint);
 
-              // 在點之間插值
-              const t = (ion.progress * allPoints.length) % 1;
+              // 在點之間線性插值
+              const t = (currentProgress * allPoints.length) % 1;
               ion.x = localCurrent.x + (localNext.x - localCurrent.x) * t;
               ion.y = localCurrent.y + (localNext.y - localCurrent.y) * t;
             },
@@ -466,14 +482,26 @@ class ElectrolysisModule {
             ion.tween.kill();
           }
           // 重置離子到原始位置
-          const config = this.itemCanvas.ionConfigs[component.type + ".png"]?.find((pos) => pos.x === ion.originalX && pos.y === ion.originalY);
-          if (config) {
-            ion.x = config.x;
-            ion.y = config.y;
+          if (component.type === "Wire") {
+            // 電線組件需要通過 redrawWire 重置離子位置
+            const joint1 = component.joints[0];
+            const joint2 = component.joints[1];
+            ion.x = joint1.x + (joint2.x - joint1.x) * ion.progress;
+            ion.y = joint1.y + (joint2.y - joint1.y) * ion.progress;
+          } else {
+            const config = this.itemCanvas.ionConfigs[component.type + ".png"]?.find((pos) => pos.x === ion.originalX && pos.y === ion.originalY);
+            if (config) {
+              ion.x = config.x;
+              ion.y = config.y;
+            }
           }
           // 只有在不動畫時顯示燒杯離子
           ion.visible = component.type === "燒杯" && this.ionVisible;
         });
+      }
+      // 如果是電線組件，調用 redrawWire 重新繪製
+      if (component.type === "Wire" && component.redrawWire) {
+        component.redrawWire();
       }
     });
   }
@@ -496,6 +524,14 @@ class ElectrolysisModule {
 
   // 更新
   update(deltaTime) {
+    const currentTime = Date.now();
+
+    // Only check pH paper connection periodically
+    if (currentTime - this.lastPHCheckTime >= this.PHCheckInterval) {
+      this.handlePHPaperConnection();
+      this.lastPHCheckTime = currentTime;
+    }
+
     if (this.ionAnimationActive && this.ions.length > 0) {
       // 更新連接組件的離子位置
       this.ions.forEach((ion) => {

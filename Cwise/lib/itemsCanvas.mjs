@@ -18,7 +18,7 @@ export class ItemsCanvas {
     this.dragArea.zIndex = 9999;
     this.dragArea.visible = false;
 
-    // Add delete area
+    // 新增刪除區域
     this.deleteArea = new Container();
     this.deleteArea.box = new Graphics()
       .roundRect(-100, -50, 200, 100, 20)
@@ -81,7 +81,7 @@ export class ItemsCanvas {
       ],
     };
 
-    // Add ion configuration
+    // 新增離子配置
     this.ionConfigs = {
       "電池.png": [
         { x: -30, y: 0 },
@@ -89,10 +89,8 @@ export class ItemsCanvas {
         { x: 30, y: 0 },
       ],
       "燈泡.png": [
-        { x: -40, y: -40 },
-        { x: 40, y: -40 },
-        { x: 0, y: 40 },
-        { x: 0, y: 0 },
+        { x: -5, y: 90 },
+        { x: 5, y: 90 },
       ],
       "碳棒.png": [
         { x: 0, y: -50 },
@@ -112,9 +110,9 @@ export class ItemsCanvas {
     sceneContainer.x = position.x;
     sceneContainer.y = position.y;
     sceneContainer.connectedComponent = -1;
-    sceneContainer.type = imagePath.replace(".png", ""); // Add this line to set type for all components
+    sceneContainer.type = imagePath.replace(".png", ""); // 新增此行以設置所有組件的類型
 
-    // Add ions array to container
+    // 新增離子陣列到容器
     sceneContainer.ions = [];
 
     if (imagePath === "電線.png") {
@@ -144,7 +142,13 @@ export class ItemsCanvas {
       sceneContainer.wireBody = wireBody;
       sceneContainer.redrawWire = function () {
         this.wireBody.clear();
+
         this.wireBody.moveTo(this.joints[0].x, this.joints[0].y).lineTo(this.joints[1].x, this.joints[1].y).stroke({ width: 20, color: 0xff8000 });
+        //更新離子位置
+        this.ions.forEach((ion) => {
+          ion.x = this.joints[0].x + (this.joints[1].x - this.joints[0].x) * ion.progress;
+          ion.y = this.joints[0].y + (this.joints[1].y - this.joints[0].y) * ion.progress;
+        });
       };
 
       sceneContainer.redrawWire();
@@ -158,7 +162,7 @@ export class ItemsCanvas {
       sceneContainer.testStrip = testStrip; // 存儲測試區域的引用
       sceneContainer.addChild(paperBody, testStrip);
 
-      // No joints needed for pH paper
+      // 廣用試紙不需要連結點
       sceneContainer.joints = [];
       sceneContainer.getBounds = () => {
         return {
@@ -205,18 +209,24 @@ export class ItemsCanvas {
   }
 
   createWireIons(container) {
-    const numIons = 4; // One ion every 50px
+    const numIons = 4; // 離子數量
+    const joint1 = container.joints[0];
+    const joint2 = container.joints[1];
+
     for (let i = 0; i < numIons; i++) {
       const ion = new Graphics();
-      ion.circle(0, 0, 5);
-      ion.fill(0x0000ff);
-
+      ion.circle(0, 0, 15);
+      ion.fill(0x87ceeb);
+      ion.rect(-5, -2, 12, 5);
+      ion.fill(0x00008b);
       ion.visible = false;
 
-      // Position ion along wire
-      ion.progress = i / numIons;
-      ion.x = (i * 100) / numIons;
-      ion.y = 0;
+      // 計算離子在兩點之間的相對位置
+      ion.progress = (i + 1) / (numIons + 1);
+
+      // 設置初始位置（線性插值）
+      ion.x = joint1.x + (joint2.x - joint1.x) * ion.progress;
+      ion.y = joint1.y + (joint2.y - joint1.y) * ion.progress;
 
       container.addChild(ion);
       container.ions.push(ion);
@@ -227,11 +237,13 @@ export class ItemsCanvas {
     const config = this.ionConfigs[imagePath] || [];
     config.forEach((pos) => {
       const ion = new Graphics();
-      ion.circle(0, 0, 5);
-      ion.fill(0x0000ff);
+      ion.circle(0, 0, 15);
+      ion.fill(0x87ceeb);
+      ion.rect(-5, -2, 12, 5);
+      ion.fill(0x00008b);
       ion.visible = false;
 
-      // Store original position for reset
+      // 儲存原始位置以便重置
       ion.originalX = pos.x;
       ion.originalY = pos.y;
 
@@ -278,7 +290,7 @@ export class ItemsCanvas {
   onDragMove(event) {
     if (!this.dragTarget || !event?.global) return;
 
-    // Add delete check
+    // 新增刪除檢查
     this.checkAllDelete();
 
     if (this.dragTarget && this.draggingJoint) {
@@ -451,12 +463,12 @@ export class ItemsCanvas {
     this.rotationCenter = null;
   }
 
-  // Add new methods for delete handling
+  // 新增刪除處理的方法
   checkAllDelete() {
     this.componentsToDelete.length = 0;
     const deleteAreaBounds = this.deleteArea.getBounds();
 
-    // First pass: find components touching delete area
+    // 第一次檢查：尋找接觸刪除區域的組件
     let touchingComponents = new Set();
 
     this.components.children.forEach((component) => {
@@ -472,7 +484,7 @@ export class ItemsCanvas {
         touchingComponents.add(component);
       }
 
-      // Check joints for components that have them
+      // 檢查具有連結點的組件
       component.joints.forEach((joint) => {
         const globalPos = component.toGlobal(joint.position);
         if (
@@ -486,7 +498,7 @@ export class ItemsCanvas {
       });
     });
 
-    // Second pass: add connected components
+    // 第二次檢查：新增相連的組件
     touchingComponents.forEach((component) => {
       if (component.connectedComponent !== -1) {
         this.components.children.forEach((otherComp) => {
@@ -497,7 +509,7 @@ export class ItemsCanvas {
       }
     });
 
-    // Apply visual effects and prepare for deletion
+    // 套用視覺效果並準備刪除
     touchingComponents.forEach((component) => {
       component.tint = 0xff0000;
       this.componentsToDelete.push(component);
