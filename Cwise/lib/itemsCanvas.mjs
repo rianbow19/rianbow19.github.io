@@ -10,7 +10,6 @@ export class ItemsCanvas {
     this.dragStartPos = null;
     this.rotationCenter = null;
     this.draggingJoint = null;
-    this.hasPHPaper = false; // Add this line
 
     // 創建拖拽區域
     this.dragArea = new Graphics().rect(0, 0, 1920, 1080).fill({ color: 0x000000, alpha: 0 });
@@ -81,19 +80,42 @@ export class ItemsCanvas {
         { x: 0, y: 0.5 }, // 左側中間
       ],
     };
+
+    // Add ion configuration
+    this.ionConfigs = {
+      "電池.png": [
+        { x: -30, y: 0 },
+        { x: 0, y: 0 },
+        { x: 30, y: 0 },
+      ],
+      "燈泡.png": [
+        { x: -40, y: -40 },
+        { x: 40, y: -40 },
+        { x: 0, y: 40 },
+        { x: 0, y: 0 },
+      ],
+      "碳棒.png": [
+        { x: 0, y: -50 },
+        { x: 0, y: 0 },
+        { x: 0, y: 50 },
+      ],
+      "燒杯.png": [
+        { x: -50, y: 30 },
+        { x: 30, y: 30 },
+        { x: 110, y: 30 },
+      ],
+    };
   }
 
   createSceneItem(imagePath, position) {
-    // Add this check at the beginning of the method
-    if (imagePath === "廣用試紙.png" && this.hasPHPaper) {
-      return null;
-    }
-
     const sceneContainer = new Container();
     sceneContainer.x = position.x;
     sceneContainer.y = position.y;
     sceneContainer.connectedComponent = -1;
     sceneContainer.type = imagePath.replace(".png", ""); // Add this line to set type for all components
+
+    // Add ions array to container
+    sceneContainer.ions = [];
 
     if (imagePath === "電線.png") {
       sceneContainer.type = "Wire";
@@ -126,8 +148,8 @@ export class ItemsCanvas {
       };
 
       sceneContainer.redrawWire();
+      this.createWireIons(sceneContainer);
     } else if (imagePath === "廣用試紙.png") {
-      this.hasPHPaper = true; // Set flag when creating pH paper
       const paperBody = new Graphics().rect(-40, -100, 80, 200).fill(0x01ea00);
 
       // 創建測試區域（會變色的部分）
@@ -168,6 +190,7 @@ export class ItemsCanvas {
       });
 
       sceneContainer.addChild(sprite);
+      this.createComponentIons(sceneContainer, imagePath);
     }
 
     sceneContainer.joints.forEach((joint) => sceneContainer.addChild(joint));
@@ -179,6 +202,46 @@ export class ItemsCanvas {
 
     this.components.addChild(sceneContainer);
     return sceneContainer;
+  }
+
+  createWireIons(container) {
+    const numIons = 4; // One ion every 50px
+    for (let i = 0; i < numIons; i++) {
+      const ion = new Graphics();
+      ion.circle(0, 0, 5);
+      ion.fill(0x0000ff);
+
+      ion.visible = false;
+
+      // Position ion along wire
+      ion.progress = i / numIons;
+      ion.x = (i * 100) / numIons;
+      ion.y = 0;
+
+      container.addChild(ion);
+      container.ions.push(ion);
+    }
+  }
+
+  createComponentIons(container, imagePath) {
+    const config = this.ionConfigs[imagePath] || [];
+    config.forEach((pos) => {
+      const ion = new Graphics();
+      ion.circle(0, 0, 5);
+      ion.fill(0x0000ff);
+      ion.visible = false;
+
+      // Store original position for reset
+      ion.originalX = pos.x;
+      ion.originalY = pos.y;
+
+      ion.x = pos.x;
+      ion.y = pos.y;
+      ion.progress = 0;
+
+      container.addChild(ion);
+      container.ions.push(ion);
+    });
   }
 
   onDragStart(event, target, joint = null) {
@@ -386,7 +449,6 @@ export class ItemsCanvas {
     this.draggingJoint = null;
     this.dragStartPos = null;
     this.rotationCenter = null;
-    this.hasPHPaper = false; // Reset the flag
   }
 
   // Add new methods for delete handling

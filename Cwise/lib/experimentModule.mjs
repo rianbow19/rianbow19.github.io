@@ -1,6 +1,6 @@
 import { Sprite, Texture, Text, Graphics } from "./pixi.mjs";
 import { defaultStyle } from "./textStyle.mjs";
-import { gsap } from "../gsap_src/index.js"; // Add GSAP import
+import { gsap } from "../gsap_src/index.js";
 
 class ElectrolysisModule {
   constructor(itemCanvas) {
@@ -81,11 +81,13 @@ class ElectrolysisModule {
         phColor: "green",
       },
     };
-    this.bulbLight = null; // 新增此行以儲存燈光精靈參考
-    this.statusText = null; // 新增此行以儲存狀態文字
+    this.bulbLight = null; // 儲存燈光精靈參考
+    this.statusText = null; // 儲存狀態文字
     this.ions = [];
     this.animationFrame = null;
-    this.activeIonTweens = []; // Add this for tracking GSAP tweens
+    this.activeIonTweens = []; // 用於追蹤 GSAP 動畫
+    this.ionVisible = false;
+    this.ionMoving = false;
   }
 
   // 檢查電路是否正確連接
@@ -96,32 +98,32 @@ class ElectrolysisModule {
       this.isAssembled = true;
     }
 
-    // Required components count
+    // 必需的組件數量
     const required = {
       燒杯: 1,
       電池: 1,
       燈泡: 1,
       碳棒: 2,
-      Wire: 4, // Changed from '電線' to 'Wire' to match actual type
+      Wire: 4, // 從 '電線' 改為 'Wire' 以匹配實際類型
     };
 
-    // Count components in scene
+    // 計算場景中的組件數量
     const counts = {};
     components.forEach((component) => {
-      // Handle wires separately
+      // 單獨處理電線
       if (component.type === "Wire") {
         counts["Wire"] = (counts["Wire"] || 0) + 1;
         return;
       }
 
-      // Handle other components
+      // 處理其他組件
       const type = component.type;
       if (type) {
         counts[type] = (counts[type] || 0) + 1;
       }
     });
 
-    // Compare with required components
+    // 與所需組件進行比較
     for (const [type, requiredCount] of Object.entries(required)) {
       const currentCount = counts[type] || 0;
       if (currentCount < requiredCount) {
@@ -130,7 +132,7 @@ class ElectrolysisModule {
       }
     }
 
-    // Check connections
+    // 檢查連接
     const connectedGroup = components[0]?.connectedComponent;
     const allConnected = components.every((comp) => comp.connectedComponent === connectedGroup && comp.connectedComponent !== -1);
 
@@ -159,7 +161,7 @@ class ElectrolysisModule {
     this.resetBulbLight();
 
     if (!this.isAllitem) {
-      // Validate circuit again
+      // 再次驗證電路
       this.validateCircuit();
 
       if (!this.isAssembled) {
@@ -178,9 +180,11 @@ class ElectrolysisModule {
       return false;
     }
 
+    this.startIonMovement();
+
     const solutionProps = this.solutionProperties[this.selectedSolution];
 
-    // Show "電解中" text
+    // 顯示 "電解中" 文字
     this.showStatusText("電解中");
 
     // 更新實驗狀態
@@ -189,11 +193,12 @@ class ElectrolysisModule {
 
     // 如果有連接廣用試紙，更新其顏色
     this.handlePHPaperConnection();
+    this.ionMoving = true;
 
     return true;
   }
 
-  // 新增顯示狀態文字的方法
+  // 顯示狀態文字
   showStatusText(message) {
     // 移除現有文字（如果有的話）
     if (this.statusText) {
@@ -243,7 +248,7 @@ class ElectrolysisModule {
       paperBounds.y > beakerBounds.y + beakerBounds.height
     );
 
-    // Update pH paper color based on overlap
+    // 更新試紙顏色根據重疊情況
     if (overlapping && this.selectedSolution) {
       this.connectedPHPaper = phPaper;
       this.updatePHPaperColor(this.solutionProperties[this.selectedSolution].phColor);
@@ -257,14 +262,14 @@ class ElectrolysisModule {
   updatePHPaperColor(color) {
     if (!this.connectedPHPaper) return;
 
-    // Get test strip from connected pH paper
+    // 從連接的 pH 試紙獲取測試條
     const testStrip = this.connectedPHPaper.testStrip;
     if (!testStrip) return;
 
-    // Convert color name to hex
+    // 將顏色名稱轉換為十六進制
     const colorHex = this.colorToHex(color);
 
-    // Update the test strip color
+    // 更新測試條顏色
     testStrip.clear().rect(-40, 0, 80, 100).fill(colorHex);
   }
 
@@ -286,26 +291,26 @@ class ElectrolysisModule {
     const bulb = this.findComponentByType("燈泡");
     if (!bulb) return;
 
-    // Create light sprite if it doesn't exist
+    // 如果不存在則創建燈光精靈
     if (!this.bulbLight) {
       this.bulbLight = new Sprite(Texture.from("燈泡光.png"));
       this.bulbLight.anchor.set(0.5);
       this.bulbLight.y = -50;
       this.bulbLight.alpha = 0;
-      // Add light behind the bulb
+      // 在燈泡後面添加燈光
       bulb.addChild(this.bulbLight);
     }
 
-    // Update light effect based on brightness
+    // 根據亮度更新燈光效果
     switch (brightness) {
       case "bright":
         this.bulbLight.alpha = 0.8;
-        this.bulbLight.tint = 0xffff00; // Yellow tint
+        this.bulbLight.tint = 0xffff00; // 黃色
         this.bulbLight.scale.set(1.5);
         break;
       case "dim":
         this.bulbLight.alpha = 0.4;
-        this.bulbLight.tint = 0xffaa00; // Orange-yellow tint
+        this.bulbLight.tint = 0xffaa00; // 橙黃色
         this.bulbLight.scale.set(1.2);
         break;
       case "none":
@@ -327,20 +332,20 @@ class ElectrolysisModule {
   // 尋找特定類型的組件
   findComponentByType(type) {
     if (!this.itemCanvas?.components?.children) {
-      console.log("Canvas or components not initialized");
+      console.log("畫布或組件未初始化");
       return null;
     }
 
-    // Remove .png extension from search type
+    // 從搜尋類型中移除 .png 副檔名
     const searchType = type.replace(".png", "");
 
     const component = this.itemCanvas.components.children.find((component) => {
-      // Check if component is wire
+      // 檢查組件是否為電線
       if (searchType === "電線" && component.type === "Wire") {
         return true;
       }
 
-      // Direct type comparison for non-wire components
+      // 非電線組件的直接類型比較
       return component.type === searchType;
     });
 
@@ -360,192 +365,123 @@ class ElectrolysisModule {
     if (this.solutionProperties[solutionName]) {
       this.selectedSolution = solutionName;
       this.resetBulbLight(); // 切換溶液時重置燈泡
+      this.stopIonAnimation(); // 切換溶液時停止離子動畫
       this.updateBeakerColor(this.solutionProperties[solutionName].color);
-      // 如果試紙已連接，立即更新試紙顏色
-      this.handlePHPaperConnection();
     }
+    this.handlePHPaperConnection();
   }
 
   // 切換離子動畫
   toggleIonAnimation(show) {
-    this.ionAnimationActive = show;
-    if (show && this.validCircuit && this.selectedSolution) {
-      // 啟動離子動畫
-      this.startIonAnimation();
-    } else {
-      // 停止離子動畫
-      this.stopIonAnimation();
-    }
-  }
-
-  // 開始離子動畫
-  startIonAnimation() {
-    if (!this.validCircuit || !this.selectedSolution) return;
-    this.stopIonAnimation();
-    this.createIonsForComponents();
-  }
-
-  calculateWireLength(wire) {
-    if (!wire.joints || wire.joints.length < 2) return 0;
-    const start = wire.joints[0].getGlobalPosition();
-    const end = wire.joints[1].getGlobalPosition();
-    return Math.hypot(end.x - start.x, end.y - start.y);
-  }
-
-  getWireIonPositions(wire, numIons) {
-    if (!wire.joints || wire.joints.length < 2) return [];
-    const positions = [];
-    const start = wire.joints[0].getGlobalPosition();
-    const end = wire.joints[1].getGlobalPosition();
-
-    for (let i = 0; i < numIons; i++) {
-      const progress = i / Math.max(1, numIons - 1);
-      positions.push({
-        x: start.x + (end.x - start.x) * progress,
-        y: start.y + (end.y - start.y) * progress,
-        progress,
-      });
-    }
-    return positions;
-  }
-
-  getComponentIonPositions(component, numIons) {
-    const positions = [];
-    const radius = 30;
-
-    for (let i = 0; i < numIons; i++) {
-      const angle = (i / numIons) * Math.PI * 2;
-      const x = component.x + Math.cos(angle) * radius;
-      const y = component.y + Math.sin(angle) * radius;
-      positions.push({
-        x,
-        y,
-        progress: i / numIons,
-      });
-    }
-    return positions;
-  }
-
-  getConnectedComponentsPath(component) {
-    const connectedComponents = this.itemCanvas.components.children.filter((comp) => comp.connectedComponent === component.connectedComponent);
-
-    // Get all joint positions
-    const points = [];
-    connectedComponents.forEach((comp) => {
-      comp.joints.forEach((joint) => {
-        const globalPos = comp.toGlobal(joint.position);
-        points.push({ x: globalPos.x, y: globalPos.y });
-      });
-    });
-
-    // Order points to form a circular path
-    const center = {
-      x: points.reduce((sum, p) => sum + p.x, 0) / points.length,
-      y: points.reduce((sum, p) => sum + p.y, 0) / points.length,
-    };
-
-    // Sort points by angle around center
-    points.sort((a, b) => {
-      const angleA = Math.atan2(a.y - center.y, a.x - center.x);
-      const angleB = Math.atan2(b.y - center.y, b.x - center.x);
-      return angleA - angleB;
-    });
-
-    return { points, center };
-  }
-
-  createIonsForComponents() {
+    this.ionVisible = show;
     const components = this.itemCanvas.components.children;
-    const processedGroups = new Set();
 
     components.forEach((component) => {
-      if (!component || processedGroups.has(component.connectedComponent)) return;
+      if (component.ions) {
+        component.ions.forEach((ion) => {
+          // 只有在動畫中時顯示燒杯離子
+          ion.visible = show && (component.type === "燒杯" || this.ionMoving);
+        });
+      }
+    });
+  }
 
-      if (component.connectedComponent !== -1) {
-        processedGroups.add(component.connectedComponent);
-        const { points, center } = this.getConnectedComponentsPath(component);
+  // 開始離子移動
+  startIonMovement() {
+    if (!this.validCircuit || !this.selectedSolution) return;
+    this.ionMoving = true;
 
-        // Create ions for the circuit group
-        const numIons = Math.max(8, points.length * 2);
-        for (let i = 0; i < numIons; i++) {
-          const ion = new Graphics();
-          ion.circle(0, 0, 5);
-          ion.fill(0x0000ff);
+    const components = this.itemCanvas.components.children;
+    const allPoints = [];
+    let center = { x: 0, y: 0 };
 
-          const progress = i / numIons;
-          ion.progress = progress;
-          ion.pathPoints = points;
-          ion.pathCenter = center;
+    // 首先，收集所有離子位置並計算中心
+    components.forEach((component) => {
+      if (component.ions) {
+        component.ions.forEach((ion) => {
+          const pos = component.toGlobal({ x: ion.x, y: ion.y });
+          allPoints.push(pos);
+          center.x += pos.x;
+          center.y += pos.y;
+        });
+      }
+    });
 
-          // Set initial position
-          const pos = this.getIonPosition(progress, points, center);
-          ion.x = pos.x;
-          ion.y = pos.y;
+    center.x /= allPoints.length;
+    center.y /= allPoints.length;
 
-          this.itemCanvas.container.addChild(ion);
-          this.ions.push(ion);
+    // 按角度排序點以進行圓周運動
+    allPoints.sort((a, b) => {
+      const angleA = Math.atan2(a.y - center.y, a.x - center.x);
+      const angleB = Math.atan2(b.y - center.y, b.x - center.x);
+      return angleB - angleA;
+    });
 
-          // Create GSAP animation
+    // 顯示所有離子並對其進行動畫處理
+    components.forEach((component) => {
+      if (component.ions) {
+        component.ions.forEach((ion) => {
+          ion.visible = true;
+          if (ion.tween) ion.tween.kill();
+
           const tween = gsap.to(ion, {
             duration: 5,
             progress: 1,
             repeat: -1,
             ease: "none",
             onUpdate: () => {
-              const pos = this.getIonPosition(ion.progress, points, center);
-              ion.x = pos.x;
-              ion.y = pos.y;
+              if (!this.ionMoving) return;
+
+              // 找到路徑中的當前點和下一個點
+              const index = Math.floor(ion.progress * allPoints.length);
+              const nextIndex = (index + 1) % allPoints.length;
+              const currentPoint = allPoints[index];
+              const nextPoint = allPoints[nextIndex];
+
+              // 轉換為本地座標
+              const localCurrent = component.toLocal(currentPoint);
+              const localNext = component.toLocal(nextPoint);
+
+              // 在點之間插值
+              const t = (ion.progress * allPoints.length) % 1;
+              ion.x = localCurrent.x + (localNext.x - localCurrent.x) * t;
+              ion.y = localCurrent.y + (localNext.y - localCurrent.y) * t;
             },
           });
-          this.activeIonTweens.push(tween);
-        }
+          ion.tween = tween;
+        });
       }
     });
   }
 
-  getIonPosition(progress, points, center) {
-    const totalPoints = points.length;
-    const segmentIndex = Math.floor(progress * totalPoints);
-    const nextIndex = (segmentIndex + 1) % totalPoints;
-    const segmentProgress = (progress * totalPoints) % 1;
-
-    const currentPoint = points[segmentIndex];
-    const nextPoint = points[nextIndex];
-
-    // Bezier curve control point
-    const controlPoint = {
-      x: center.x + (currentPoint.x - center.x) * 1.2,
-      y: center.y + (currentPoint.y - center.y) * 1.2,
-    };
-
-    // Quadratic Bezier interpolation
-    const t = segmentProgress;
-    const x = (1 - t) * ((1 - t) * currentPoint.x + t * controlPoint.x) + t * ((1 - t) * controlPoint.x + t * nextPoint.x);
-    const y = (1 - t) * ((1 - t) * currentPoint.y + t * controlPoint.y) + t * ((1 - t) * controlPoint.y + t * nextPoint.y);
-
-    return { x, y };
-  }
-
+  // 停止離子動畫
   stopIonAnimation() {
-    // Kill all active GSAP tweens
-    this.activeIonTweens.forEach((tween) => {
-      tween.kill();
-    });
-    this.activeIonTweens = [];
+    this.ionMoving = false;
+    const components = this.itemCanvas.components.children;
 
-    // Remove all ions
-    this.ions.forEach((ion) => {
-      if (ion.parent) {
-        ion.parent.removeChild(ion);
+    components.forEach((component) => {
+      if (component.ions) {
+        component.ions.forEach((ion) => {
+          if (ion.tween) {
+            ion.tween.kill();
+          }
+          // 重置離子到原始位置
+          const config = this.itemCanvas.ionConfigs[component.type + ".png"]?.find((pos) => pos.x === ion.originalX && pos.y === ion.originalY);
+          if (config) {
+            ion.x = config.x;
+            ion.y = config.y;
+          }
+          // 只有在不動畫時顯示燒杯離子
+          ion.visible = component.type === "燒杯" && this.ionVisible;
+        });
       }
     });
-    this.ions = [];
   }
 
+  // 重置
   reset() {
     // 重置所有狀態
     this.validCircuit = false;
-    this.selectedSolution = null;
     this.ionAnimationActive = false;
     this.connectedPHPaper = null;
     this.isAssembled = false;
@@ -554,11 +490,14 @@ class ElectrolysisModule {
     this.stopIonAnimation();
     this.activeIonTweens.forEach((tween) => tween.kill());
     this.activeIonTweens = [];
+    this.ionVisible = false;
+    this.ionMoving = false;
   }
 
+  // 更新
   update(deltaTime) {
     if (this.ionAnimationActive && this.ions.length > 0) {
-      // Update positions of connected components' ions
+      // 更新連接組件的離子位置
       this.ions.forEach((ion) => {
         if (ion.pathPoints && ion.pathCenter) {
           const pos = this.getIonPosition(ion.progress, ion.pathPoints, ion.pathCenter);
@@ -685,20 +624,20 @@ class ModuleSetup {
     // 定位電線以創建所示的角度連接
     if (wire1?.joints && wire2?.joints && wire3?.joints && wire4?.joints) {
       // 從電池到左碳棒的電線
-      wire1.joints[0].position.set(-260, 110); //Rod end
-      wire1.joints[1].position.set(-275, -100); // Battery end
+      wire1.joints[0].position.set(-260, 110); // 碳棒端
+      wire1.joints[1].position.set(-275, -100); // 電池端
 
       // 從左碳棒到燈泡的電線
-      wire2.joints[0].position.set(-100, -100); // Rod end
-      wire2.joints[1].position.set(145, -25); // Bulb end
+      wire2.joints[0].position.set(-100, -100); // 碳棒端
+      wire2.joints[1].position.set(145, -25); // 燈泡端
 
       // 從燈泡到右碳棒的電線
-      wire3.joints[0].position.set(95, -120); // Bulb end
-      wire3.joints[1].position.set(-30, 100); // Rod end
+      wire3.joints[0].position.set(95, -120); // 燈泡端
+      wire3.joints[1].position.set(-30, 100); // 碳棒端
 
       // 從右碳棒到電池的電線
-      wire4.joints[0].position.set(-20, -10); // Rod end
-      wire4.joints[1].position.set(-280, -50); // Battery end
+      wire4.joints[0].position.set(-20, -10); // 碳棒端
+      wire4.joints[1].position.set(-280, -50); // 電池端
 
       // 重新繪製所有電線
       [wire1, wire2, wire3, wire4].forEach((wire) => {

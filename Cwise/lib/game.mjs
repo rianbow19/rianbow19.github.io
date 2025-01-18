@@ -270,7 +270,7 @@ class Game {
       this.imageList,
       this.itemCanvas,
       5, //項目數
-      [0, 1, 2, 3, 4, 5] // 選定的索引
+      [4, 0, 1, 2, 3, 5] // 選定的索引
     );
     this.UIContainer.addChild(draggableList.container);
 
@@ -305,7 +305,10 @@ class Game {
       1650,
       75,
       () => {
-        this.electrolysisModule.toggleIonAnimation(true);
+        this.itemCanvas.createComponentIons();
+        if (this.electrolysisModule.isAssembled) {
+          this.electrolysisModule.toggleIonAnimation(true);
+        }
       },
       () => {
         this.electrolysisModule.toggleIonAnimation(false);
@@ -322,6 +325,12 @@ class Game {
       this.electrolysisModule.isAssembled = true;
       this.electrolysisModule.validCircuit = true;
       this.electrolysisModule.isAllitem = true;
+
+      // If ions are supposed to be visible, show them immediately
+      if (this.ionCon?.children[3]?.visible) {
+        // Check if checkbox is checked
+        this.electrolysisModule.toggleIonAnimation(true);
+      }
     });
 
     // 標題

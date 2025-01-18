@@ -92,12 +92,6 @@ export class ItemsList {
     const endIndex = Math.min(startIndex + this.itemsPerPage, this.images.length);
 
     for (let i = startIndex; i < endIndex; i++) {
-      // 如果是廣用試紙且已放置，則跳過
-      if (this.images[i] === "廣用試紙.png" && this.itemCanvas.hasPHPaper) {
-        console.log("skip PHPaper");
-        continue;
-      }
-
       const itemContainer = this.createDraggableItem(this.images[i], this.items.length);
       if (itemContainer) {
         this.items.push(itemContainer);
@@ -110,10 +104,6 @@ export class ItemsList {
 
   // 建立可拖動的項目容器。
   createDraggableItem(imagePath, index) {
-    // Add this check at the beginning of the method
-    if (imagePath === "廣用試紙.png" && this.itemCanvas.hasPHPaper) {
-      return null;
-    }
     const itemContainer = new Container();
     itemContainer.x = 110;
     itemContainer.y = 240 + index * 140;
