@@ -13,6 +13,7 @@ const resource = [
   "銅片.png",
   "廣用試紙.png",
   "標題字.png",
+  "標題字2.png",
   "鋅片.png",
   "鋅銅電池組合.png",
   "鋅銅電池雙燒杯.png",

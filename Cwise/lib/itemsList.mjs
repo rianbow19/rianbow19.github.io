@@ -13,6 +13,7 @@ export class ItemsList {
     this.items = [];
     this.draggedSprite = null;
     this.isDragging = false;
+    this.dragStartPosition = null; // 新增拖曳起始位置
 
     this.init();
   }
@@ -91,9 +92,17 @@ export class ItemsList {
     const endIndex = Math.min(startIndex + this.itemsPerPage, this.images.length);
 
     for (let i = startIndex; i < endIndex; i++) {
-      const itemContainer = this.createDraggableItem(this.images[i], i - startIndex);
-      this.items.push(itemContainer);
-      this.container.addChild(itemContainer);
+      // 如果是廣用試紙且已放置，則跳過
+      if (this.images[i] === "廣用試紙.png" && this.itemCanvas.hasPHPaper) {
+        console.log("skip PHPaper");
+        continue;
+      }
+
+      const itemContainer = this.createDraggableItem(this.images[i], this.items.length);
+      if (itemContainer) {
+        this.items.push(itemContainer);
+        this.container.addChild(itemContainer);
+      }
     }
 
     this.updatePageButtonsVisibility();
@@ -101,6 +110,10 @@ export class ItemsList {
 
   // 建立可拖動的項目容器。
   createDraggableItem(imagePath, index) {
+    // Add this check at the beginning of the method
+    if (imagePath === "廣用試紙.png" && this.itemCanvas.hasPHPaper) {
+      return null;
+    }
     const itemContainer = new Container();
     itemContainer.x = 110;
     itemContainer.y = 240 + index * 140;
@@ -155,6 +168,9 @@ export class ItemsList {
     container.alpha = 0.5;
     const localPos = event.getLocalPosition(this.container);
 
+    // 儲存拖曳起始位置
+    this.dragStartPosition = { x: localPos.x, y: localPos.y };
+
     this.draggedSprite = this.createDraggedItem(container, {
       x: localPos.x,
       y: localPos.y,
@@ -171,12 +187,21 @@ export class ItemsList {
 
     container.alpha = 1;
 
-    if (this.draggedSprite) {
-      const position = event.getLocalPosition(this.itemCanvas.container);
-      this.itemCanvas.createSceneItem(this.draggedSprite.imagePath, position);
+    if (this.draggedSprite && this.dragStartPosition) {
+      const currentPos = event.getLocalPosition(this.container);
+
+      // 計算拖曳距離
+      const dragDistance = Math.sqrt(Math.pow(currentPos.x - this.dragStartPosition.x, 2) + Math.pow(currentPos.y - this.dragStartPosition.y, 2));
+
+      // 只有當拖曳距離大於 50 時才創建物件
+      if (dragDistance > 300) {
+        const position = event.getLocalPosition(this.itemCanvas.container);
+        this.itemCanvas.createSceneItem(this.draggedSprite.imagePath, position);
+      }
 
       this.container.removeChild(this.draggedSprite);
       this.draggedSprite = null;
+      this.dragStartPosition = null;
     }
 
     this.isDragging = false;

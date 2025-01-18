@@ -1,4 +1,7 @@
-import { Container, Sprite, Texture, Graphics, Point } from "./pixi.mjs";
+import { Container, Sprite, Graphics, Text, Texture } from "./pixi.mjs";
+import { defaultStyle, defaultStyle2 } from "./textStyle.mjs";
+
+let dragTarget = null;
 
 export class ItemsCanvas {
   constructor() {
@@ -7,6 +10,7 @@ export class ItemsCanvas {
     this.dragStartPos = null;
     this.rotationCenter = null;
     this.draggingJoint = null;
+    this.hasPHPaper = false; // Add this line
 
     // 創建拖拽區域
     this.dragArea = new Graphics().rect(0, 0, 1920, 1080).fill({ color: 0x000000, alpha: 0 });
@@ -15,9 +19,23 @@ export class ItemsCanvas {
     this.dragArea.zIndex = 9999;
     this.dragArea.visible = false;
 
+    // Add delete area
+    this.deleteArea = new Container();
+    this.deleteArea.box = new Graphics()
+      .roundRect(-100, -50, 200, 100, 20)
+      .fill({ color: 0x000000, alpha: 0.2 })
+      .stroke({ width: 5, color: 0xffffff });
+    this.deleteArea.box.position.set(1600, 985);
+    this.deleteArea.text = new Text({ text: "刪除區", style: defaultStyle2 });
+    this.deleteArea.text.position.set(1600, 985);
+    this.deleteArea.text.anchor.set(0.5);
+    this.deleteArea.addChild(this.deleteArea.box, this.deleteArea.text);
+
     // 初始化容器
     this.components = new Container();
-    this.container.addChild(this.dragArea, this.components);
+    this.container.addChild(this.dragArea, this.deleteArea, this.components);
+
+    this.componentsToDelete = [];
 
     // 設置拖拽區域事件
     this.dragArea.on("pointermove", this.onDragMove.bind(this));
@@ -42,6 +60,18 @@ export class ItemsCanvas {
         { x: 1, y: 0.5 }, // 右側中間
         { x: 0, y: 0.5 }, // 左側中間
       ],
+
+      "燒杯.png": [
+        { x: 0.3, y: 0.5 }, // 左側中間
+        { x: 0.8, y: 0.5 }, // 右側中間
+      ],
+      "廣用試紙.png": [
+        { x: 0.5, y: 1 }, // 底部中間
+      ],
+      "碳棒.png": [
+        { x: 0.5, y: 1 }, // 底部中間
+        { x: 0.5, y: 0 }, // 頂部中間
+      ],
       "檢流計.png": [
         { x: 1, y: 0.5 }, // 右側中間
         { x: 0, y: 0.5 }, // 左側中間
@@ -50,166 +80,97 @@ export class ItemsCanvas {
         { x: 1, y: 0.5 }, // 右側中間
         { x: 0, y: 0.5 }, // 左側中間
       ],
-      "燒杯.png": [
-        { x: 0.3, y: 0.5 }, // 左側中間
-        { x: 0.8, y: 0.5 }, // 右側中間
-      ],
-      "廣用試紙.png": [
-        { x: 0.5, y: 1 }, // 底部中間
-      ],
     };
-  }
-
-  // 輔助函數：圍繞點旋轉
-  rotateAroundPoint(point, center, angle) {
-    if (!point || !center) return null;
-
-    const sin = Math.sin(angle);
-    const cos = Math.cos(angle);
-
-    const translatedX = point.x - center.x;
-    const translatedY = point.y - center.y;
-
-    return {
-      x: translatedX * cos - translatedY * sin + center.x,
-      y: translatedX * sin + translatedY * cos + center.y,
-    };
-  }
-
-  // 尋找所有相連的組件
-  findAllConnectedComponents(startComponent) {
-    const connectedComponents = new Set();
-    const componentGroup = startComponent.connectedComponent;
-
-    if (componentGroup === -1) return connectedComponents;
-
-    this.components.children.forEach((component) => {
-      if (component.connectedComponent === componentGroup) {
-        connectedComponents.add(component);
-      }
-    });
-
-    return connectedComponents;
-  }
-
-  updateComponentGroups() {
-    // 重置所有 Groups
-    this.connectedGroups.length = 0;
-    const visited = new Set();
-
-    // 尋找所有相連的組件並重新分配 group
-    this.components.children.forEach((component) => {
-      if (visited.has(component)) return;
-
-      const connectedComponents = this.findConnectedComponentsByJoints(component);
-      if (connectedComponents.size > 1) {
-        const newGroup = this.connectedGroups.length;
-        this.connectedGroups.push(newGroup);
-        connectedComponents.forEach((comp) => {
-          comp.connectedComponent = newGroup;
-          visited.add(comp);
-        });
-      } else {
-        component.connectedComponent = -1;
-        visited.add(component);
-      }
-    });
-  }
-
-  // 尋找通過連接點相連的所有組件
-  findConnectedComponentsByJoints(startComponent, visited = new Set()) {
-    const connectedComponents = new Set([startComponent]);
-    visited.add(startComponent);
-
-    startComponent.joints.forEach((joint) => {
-      if (!joint.connected) return;
-
-      this.components.children.forEach((otherComponent) => {
-        if (visited.has(otherComponent)) return;
-
-        otherComponent.joints.forEach((otherJoint) => {
-          if (!otherJoint.connected) return;
-
-          const jointPos = startComponent.toGlobal(joint.position);
-          const otherJointPos = otherComponent.toGlobal(otherJoint.position);
-
-          if (this.areJointsOverlapping(jointPos, otherJointPos)) {
-            const subComponents = this.findConnectedComponentsByJoints(otherComponent, visited);
-            subComponents.forEach((comp) => connectedComponents.add(comp));
-          }
-        });
-      });
-    });
-
-    return connectedComponents;
-  }
-
-  // 斷開連接點
-  disconnectJoint(joint) {
-    if (joint.connected) {
-      const oldComponents = this.findAllConnectedComponents(joint.parent);
-
-      const connectedJoint = this.findConnectedJoint(joint);
-      if (connectedJoint) {
-        connectedJoint.connected = false;
-        connectedJoint.tint = 0xffffff;
-      }
-
-      joint.connected = false;
-      joint.tint = 0xffffff;
-
-      this.updateComponentGroups();
-    }
-  }
-
-  // 尋找相連的另一個連接點
-  findConnectedJoint(targetJoint) {
-    for (let component of this.components.children) {
-      for (let joint of component.joints) {
-        if (joint !== targetJoint && joint.connected) {
-          const targetPos = targetJoint.parent.toGlobal(targetJoint.position);
-          const jointPos = joint.parent.toGlobal(joint.position);
-
-          if (this.areJointsOverlapping(targetPos, jointPos)) {
-            return joint;
-          }
-        }
-      }
-    }
-    return null;
   }
 
   createSceneItem(imagePath, position) {
+    // Add this check at the beginning of the method
+    if (imagePath === "廣用試紙.png" && this.hasPHPaper) {
+      return null;
+    }
+
     const sceneContainer = new Container();
     sceneContainer.x = position.x;
     sceneContainer.y = position.y;
     sceneContainer.connectedComponent = -1;
+    sceneContainer.type = imagePath.replace(".png", ""); // Add this line to set type for all components
 
-    const sprite = new Sprite(Texture.from(imagePath));
-    sprite.anchor.set(0.5);
-    const scale = sprite.texture.width / Math.max(sprite.texture.width, sprite.texture.height);
-    sprite.scale.set(scale);
+    if (imagePath === "電線.png") {
+      sceneContainer.type = "Wire";
+      const wireBody = new Graphics();
+      wireBody.eventMode = "static";
+      wireBody.cursor = "pointer";
+      wireBody.on("pointerdown", (event) => this.onDragStart(event, sceneContainer));
 
-    const jointConfig = this.jointConfigs[imagePath] || [
-      { x: 1, y: 0.5 },
-      { x: 0, y: 0.5 },
-    ];
+      sceneContainer.joints = [];
+      for (let i = 0; i < 2; i++) {
+        const joint = new Graphics().circle(0, 0, 20).fill({ color: 0x00ff00, alpha: 0 }).stroke({ color: 0xadadad, width: 6, alpha: 0.3 });
 
-    // 為 joint 添加拖曳事件
-    sceneContainer.joints = jointConfig.map((config) => {
-      const joint = new Graphics().circle(0, 0, 20).fill({ color: 0x00ff00, alpha: 0 }).stroke({ color: 0xadadad, width: 6 });
+        joint.eventMode = "static";
+        joint.cursor = "pointer";
+        joint.position.set(i * 100, 0);
+        joint.connected = false;
+        joint.isJoint = true;
+        joint.zIndex = 3;
+        joint.on("pointerdown", (event) => this.onDragStart(event, sceneContainer, joint));
 
-      joint.position.set((config.x - 0.5) * sprite.width, (config.y - 0.5) * sprite.height);
-      joint.connected = false;
-      joint.eventMode = "static";
-      joint.cursor = "pointer";
-      joint.isJoint = true;
-      joint.on("pointerdown", (event) => this.onDragStart(event, sceneContainer, joint));
-      return joint;
-    });
+        sceneContainer.joints.push(joint);
+        sceneContainer.addChild(joint);
+      }
+
+      sceneContainer.addChild(wireBody);
+      sceneContainer.wireBody = wireBody;
+      sceneContainer.redrawWire = function () {
+        this.wireBody.clear();
+        this.wireBody.moveTo(this.joints[0].x, this.joints[0].y).lineTo(this.joints[1].x, this.joints[1].y).stroke({ width: 20, color: 0xff8000 });
+      };
+
+      sceneContainer.redrawWire();
+    } else if (imagePath === "廣用試紙.png") {
+      this.hasPHPaper = true; // Set flag when creating pH paper
+      const paperBody = new Graphics().rect(-40, -100, 80, 200).fill(0x01ea00);
+
+      // 創建測試區域（會變色的部分）
+      const testStrip = new Graphics().rect(-40, 0, 80, 100).fill(0x01ea00);
+
+      sceneContainer.testStrip = testStrip; // 存儲測試區域的引用
+      sceneContainer.addChild(paperBody, testStrip);
+
+      // No joints needed for pH paper
+      sceneContainer.joints = [];
+      sceneContainer.getBounds = () => {
+        return {
+          x: sceneContainer.x - 15,
+          y: sceneContainer.y - 100,
+          width: 30,
+          height: 200,
+        };
+      };
+    } else {
+      const sprite = new Sprite(Texture.from(imagePath));
+      sprite.anchor.set(0.5);
+      const scale = sprite.texture.width / Math.max(sprite.texture.width, sprite.texture.height);
+      sprite.scale.set(scale);
+
+      const jointConfig = this.jointConfigs[imagePath] || [];
+
+      sceneContainer.joints = jointConfig.map((config) => {
+        const joint = new Graphics().circle(0, 0, 20).fill({ color: 0x00ff00, alpha: 0 }).stroke({ color: 0xadadad, width: 6, alpha: 0.3 });
+
+        // 計算連結點位置
+        joint.position.set((config.x - 0.5) * sprite.width, (config.y - 0.5) * sprite.height);
+        joint.connected = false;
+        joint.eventMode = "static";
+        joint.cursor = "pointer";
+        joint.isJoint = true;
+        joint.on("pointerdown", (event) => this.onDragStart(event, sceneContainer, joint));
+        return joint;
+      });
+
+      sceneContainer.addChild(sprite);
+    }
 
     sceneContainer.joints.forEach((joint) => sceneContainer.addChild(joint));
-    sceneContainer.addChild(sprite);
     sceneContainer.eventMode = "static";
     sceneContainer.cursor = "pointer";
     sceneContainer.on("pointerdown", (event) => this.onDragStart(event, sceneContainer));
@@ -220,12 +181,16 @@ export class ItemsCanvas {
     return sceneContainer;
   }
 
-  // 開始拖拽
   onDragStart(event, target, joint = null) {
     if (!event || !target) return;
 
-    this.dragTarget = target;
-    this.draggingJoint = joint;
+    if (joint?.isJoint) {
+      this.dragTarget = target;
+      this.draggingJoint = joint;
+    } else {
+      this.dragTarget = target;
+      this.draggingJoint = null;
+    }
 
     this.dragStartPos = {
       x: event.global.x || 0,
@@ -239,14 +204,19 @@ export class ItemsCanvas {
     this.dragArea.visible = true;
     target.alpha = 0.5;
 
-    if (joint?.connected) {
-      this.disconnectJoint(joint);
-    }
+    // 記錄物件與滑鼠位置的偏移
+    const globalPos = dragTarget.toGlobal({ x: 0, y: 0 });
+    dragTarget.offset = {
+      x: globalPos.x - event.global.x,
+      y: globalPos.y - event.global.y,
+    };
   }
 
-  // 拖拽移動處理
   onDragMove(event) {
     if (!this.dragTarget || !event?.global) return;
+
+    // Add delete check
+    this.checkAllDelete();
 
     if (this.dragTarget && this.draggingJoint) {
       if (this.draggingJoint.isJoint) {
@@ -262,16 +232,19 @@ export class ItemsCanvas {
     }
   }
 
-  // 處理連接點拖拽（旋轉）
   handleJointDrag(event) {
-    // 取得另一個joint作為旋轉軸心
-    const pivotJoint = this.dragTarget.joints.find((j) => j !== this.draggingJoint);
+    if (!this.dragTarget || !this.draggingJoint) return;
 
-    // 如果軸心 joint 是已連接的，也要斷開連接
-    if (pivotJoint.connected) {
-      this.disconnectJoint(pivotJoint);
+    if (this.dragTarget.redrawWire) {
+      // 電線的拉伸邏輯
+      const localPos = this.dragTarget.toLocal(event.global);
+      this.draggingJoint.position.set(localPos.x, localPos.y);
+      this.dragTarget.redrawWire();
+      return;
     }
 
+    // 取得另一個joint作為旋轉軸心
+    const pivotJoint = this.dragTarget.joints.find((j) => j !== this.draggingJoint);
     const pivotGlobal = this.dragTarget.toGlobal(pivotJoint.position);
 
     // 計算角度差
@@ -279,11 +252,11 @@ export class ItemsCanvas {
     const currentAngle = Math.atan2(event.global.y - pivotGlobal.y, event.global.x - pivotGlobal.x);
     const rotationDiff = currentAngle - startAngle;
 
-    // 計算電池的新位置（考慮旋轉後的位置變化）
+    // 計算新位置
     const currentPos = { x: this.dragTarget.x, y: this.dragTarget.y };
     const newPos = this.rotateAroundPoint(currentPos, this.dragTarget.parent.toLocal(pivotGlobal), rotationDiff);
 
-    // 更新電池的位置和旋轉
+    // 更新位置和旋轉
     this.dragTarget.position.set(newPos.x, newPos.y);
     this.dragTarget.rotation = this.rotationCenter.rotation + rotationDiff;
 
@@ -292,21 +265,17 @@ export class ItemsCanvas {
     this.rotationCenter.rotation = this.dragTarget.rotation;
   }
 
-  // 處理一般的拖曳
   handleNormalDrag(event) {
     if (!this.dragTarget || !this.dragTarget.parent) return;
 
-    // 儲存舊位置
     const oldPos = {
       x: this.dragTarget.x,
       y: this.dragTarget.y,
     };
 
-    // 更新位置
     const newPos = this.dragTarget.parent.toLocal(event.global);
     this.dragTarget.position.set(newPos.x, newPos.y);
 
-    // 如果是群組的一部分，移動相連的物件
     if (this.dragTarget.connectedComponent !== -1) {
       this.components.children.forEach((element) => {
         if (element !== this.dragTarget && element.connectedComponent === this.dragTarget.connectedComponent) {
@@ -318,9 +287,25 @@ export class ItemsCanvas {
       });
     }
   }
+
+  rotateAroundPoint(point, center, angle) {
+    if (!point || !center) return null;
+    const sin = Math.sin(angle);
+    const cos = Math.cos(angle);
+
+    const translatedX = point.x - center.x;
+    const translatedY = point.y - center.y;
+
+    return {
+      x: translatedX * cos - translatedY * sin + center.x,
+      y: translatedX * sin + translatedY * cos + center.y,
+    };
+  }
+
   onDragEnd() {
     if (this.dragTarget) {
-      this.checkAndSnapJoints(this.dragTarget);
+      this.doAllDelete();
+      this.recheckAllConnections();
       this.dragArea.visible = false;
       this.dragTarget.alpha = 1;
       this.dragTarget = null;
@@ -330,50 +315,55 @@ export class ItemsCanvas {
     }
   }
 
-  checkAndSnapJoints(dragTarget) {
-    const dragTargetJoints = dragTarget.getGlobalJointPositions();
+  recheckAllConnections() {
+    // 重置所有連接狀態
+    this.components.children.forEach((component) => {
+      component.connectedComponent = -1;
+      component.joints.forEach((joint) => {
+        joint.connected = false;
+        joint.tint = 0xffffff;
+      });
+    });
 
-    this.components.children.forEach((element) => {
-      if (element !== dragTarget) {
-        const elementJoints = element.getGlobalJointPositions();
+    // 檢查所有可能的連接
+    for (let i = 0; i < this.components.children.length; i++) {
+      const component1 = this.components.children[i];
+      const joints1 = component1.getGlobalJointPositions();
 
-        dragTargetJoints.forEach((dragJoint, dragIdx) => {
-          if (dragTarget.joints[dragIdx].connected) return;
+      for (let j = i + 1; j < this.components.children.length; j++) {
+        const component2 = this.components.children[j];
+        const joints2 = component2.getGlobalJointPositions();
 
-          elementJoints.forEach((elementJoint, elementIdx) => {
-            if (element.joints[elementIdx].connected) return;
+        joints1.forEach((joint1Pos, idx1) => {
+          joints2.forEach((joint2Pos, idx2) => {
+            if (this.areJointsOverlapping(joint1Pos, joint2Pos)) {
+              component1.joints[idx1].connected = true;
+              component2.joints[idx2].connected = true;
+              component1.joints[idx1].tint = 0x00ff00;
+              component2.joints[idx2].tint = 0x00ff00;
 
-            if (this.areJointsOverlapping(dragJoint, elementJoint)) {
-              const midpoint = this.calculateMidpoint(dragJoint, elementJoint);
-
-              // 計算拖曳目標的局部關節位置，考慮旋轉
-              const dragJointLocal = dragTarget.joints[dragIdx].position;
-              const rotatedDragJointPos = this.rotateAroundPoint({ x: dragJointLocal.x, y: dragJointLocal.y }, { x: 0, y: 0 }, dragTarget.rotation);
-
-              // 計算新的位置，考慮旋轉後的偏移
-              const newPos = dragTarget.parent.toLocal(midpoint);
-              dragTarget.position.set(newPos.x - rotatedDragJointPos.x, newPos.y - rotatedDragJointPos.y);
-
-              dragTarget.joints[dragIdx].connected = true;
-              element.joints[elementIdx].connected = true;
-              dragTarget.joints[dragIdx].tint = 0x00ff00;
-              element.joints[elementIdx].tint = 0x00ff00;
-
-              if (dragTarget.connectedComponent == -1 && element.connectedComponent == -1) {
+              if (component1.connectedComponent === -1 && component2.connectedComponent === -1) {
                 const newGroup = this.connectedGroups.length;
                 this.connectedGroups.push(newGroup);
-                dragTarget.connectedComponent = newGroup;
-                element.connectedComponent = newGroup;
-              } else if (dragTarget.connectedComponent == -1) {
-                dragTarget.connectedComponent = element.connectedComponent;
-              } else if (element.connectedComponent == -1) {
-                element.connectedComponent = dragTarget.connectedComponent;
+                component1.connectedComponent = newGroup;
+                component2.connectedComponent = newGroup;
+              } else if (component1.connectedComponent === -1) {
+                component1.connectedComponent = component2.connectedComponent;
+              } else if (component2.connectedComponent === -1) {
+                component2.connectedComponent = component1.connectedComponent;
+              } else if (component1.connectedComponent !== component2.connectedComponent) {
+                const oldGroup = component2.connectedComponent;
+                this.components.children.forEach((comp) => {
+                  if (comp.connectedComponent === oldGroup) {
+                    comp.connectedComponent = component1.connectedComponent;
+                  }
+                });
               }
             }
           });
         });
       }
-    });
+    }
   }
 
   calculateMidpoint(pos1, pos2) {
@@ -385,7 +375,7 @@ export class ItemsCanvas {
 
   areJointsOverlapping(joint1Pos, joint2Pos) {
     const distance = Math.sqrt(Math.pow(joint1Pos.x - joint2Pos.x, 2) + Math.pow(joint1Pos.y - joint2Pos.y, 2));
-    return distance < 30;
+    return distance < this.snapDistance;
   }
 
   reset() {
@@ -396,5 +386,66 @@ export class ItemsCanvas {
     this.draggingJoint = null;
     this.dragStartPos = null;
     this.rotationCenter = null;
+    this.hasPHPaper = false; // Reset the flag
+  }
+
+  // Add new methods for delete handling
+  checkAllDelete() {
+    this.componentsToDelete.length = 0;
+    const deleteAreaBounds = this.deleteArea.getBounds();
+
+    // First pass: find components touching delete area
+    let touchingComponents = new Set();
+
+    this.components.children.forEach((component) => {
+      component.tint = 0xffffff;
+
+      const compBounds = component.getBounds();
+      if (
+        compBounds.x + compBounds.width >= deleteAreaBounds.x &&
+        compBounds.x <= deleteAreaBounds.x + deleteAreaBounds.width &&
+        compBounds.y + compBounds.height >= deleteAreaBounds.y &&
+        compBounds.y <= deleteAreaBounds.y + deleteAreaBounds.height
+      ) {
+        touchingComponents.add(component);
+      }
+
+      // Check joints for components that have them
+      component.joints.forEach((joint) => {
+        const globalPos = component.toGlobal(joint.position);
+        if (
+          globalPos.x >= deleteAreaBounds.x &&
+          globalPos.x <= deleteAreaBounds.x + deleteAreaBounds.width &&
+          globalPos.y >= deleteAreaBounds.y &&
+          globalPos.y <= deleteAreaBounds.y + deleteAreaBounds.height
+        ) {
+          touchingComponents.add(component);
+        }
+      });
+    });
+
+    // Second pass: add connected components
+    touchingComponents.forEach((component) => {
+      if (component.connectedComponent !== -1) {
+        this.components.children.forEach((otherComp) => {
+          if (otherComp.connectedComponent === component.connectedComponent) {
+            touchingComponents.add(otherComp);
+          }
+        });
+      }
+    });
+
+    // Apply visual effects and prepare for deletion
+    touchingComponents.forEach((component) => {
+      component.tint = 0xff0000;
+      this.componentsToDelete.push(component);
+    });
+  }
+
+  doAllDelete() {
+    this.componentsToDelete.forEach((component) => {
+      this.components.removeChild(component);
+    });
+    this.componentsToDelete.length = 0;
   }
 }

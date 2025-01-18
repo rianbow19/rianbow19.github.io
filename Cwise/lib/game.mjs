@@ -4,6 +4,7 @@ import { DropdownMenu } from "./dropdownMenu.mjs";
 import { Container, Graphics, Sprite, Texture, Text } from "./pixi.mjs";
 import { defaultStyle, defaultStyle2, gdStyle, listStyle } from "./textStyle.mjs";
 import { ItemsCanvas } from "./itemsCanvas.mjs";
+import { ElectrolysisModule, ModuleSetup } from "./experimentModule.mjs";
 
 export { Game };
 class Game {
@@ -34,6 +35,8 @@ class Game {
     this.itemCanvas = new ItemsCanvas();
 
     this.baseModel = false;
+    // 創建電解實驗模組
+    this.electrolysisModule = new ElectrolysisModule(this.itemCanvas);
 
     this.init();
   }
@@ -54,6 +57,7 @@ class Game {
 
     this.reloadbtn.on("pointerup", () => {
       this.itemCanvas.reset();
+      this.electrolysisModule.reset();
     });
     this.reloadbtn.on("pointerover", () => {
       this.reloadbtn.scale.set(0.163);
@@ -136,21 +140,27 @@ class Game {
     this.setbtnCon.visible = false;
 
     //標題
-    this.titleText = new Text({ text: "CWIES", style: gdStyle });
+    this.titlebg = new Sprite(Texture.from("標題字2.png"));
     this.topicText = new Text({ text: "模組一｜電解實驗模組", style: defaultStyle });
     this.topicText.anchor.set(0.5);
-    this.titleText.anchor.set(0.5);
-    this.titleText.x = -300;
+    this.titlebg.anchor.set(0.5);
+    this.titlebg.x = -300;
 
     const topicBg = new Graphics();
     topicBg.roundRect(-200, -40, 400, 80, 20);
     topicBg.fill(0xfcfcfc);
     topicBg.stroke({ color: 0x3c3c3c, width: 2 });
 
+    this.titlebg.eventMode = "static";
+    this.titlebg.cursor = "pointer";
+    this.titlebg.on("pointerup", () => {
+      this.startTitle();
+    });
+
     this.topicCon = new Container();
     this.topicCon.x = 400;
     this.topicCon.y = 70;
-    this.topicCon.addChild(topicBg, this.topicText, this.titleText);
+    this.topicCon.addChild(topicBg, this.topicText, this.titlebg);
 
     this.startTitle();
   }
@@ -248,6 +258,7 @@ class Game {
   modlePage1() {
     this.sceneContainer.removeChildren();
     this.UIContainer.removeChildren();
+    this.itemCanvas.reset();
     this.UIContainer.addChild(this.reloadbtn); //重新整理按鈕
     this.UIContainer.addChild(this.scaleUpCon); //放大縮小按鈕
     this.UIContainer.addChild(this.setbtnCon); //電路模組按鈕
@@ -263,33 +274,22 @@ class Game {
     );
     this.UIContainer.addChild(draggableList.container);
 
-    // 顯示離子流向按鈕
-    this.showIonFlowBtn = createButton({
-      text: "顯示離子流向",
-      x: 1752,
-      y: 160,
-      onClick: () => {
-        console.log("顯示離子流向");
-      },
-    });
-
     // 開始電解按鈕
     this.startElectrolysisBtn = createButton({
       text: "開始電解",
-      x: 1548,
-      y: 160,
+      x: 1550,
+      y: 245,
       onClick: () => {
-        console.log("開始電解1");
+        this.electrolysisModule.startElectrolysis();
       },
     });
-    this.UIContainer.addChild(this.showIonFlowBtn); //顯示離子流向按鈕
     this.UIContainer.addChild(this.startElectrolysisBtn); //開始電解按鈕
 
-    // 離子顯示checkbox
-    this.ionCon = createCheckboxBlock(
-      "顯示離子",
-      1647,
-      75,
+    // 顯示離子流向按鈕
+    this.showIonFlow = createCheckboxBlock(
+      "顯示離子流向",
+      1650,
+      160,
       () => {
         console.log("顯示離子");
       },
@@ -297,27 +297,51 @@ class Game {
         console.log("隱藏離子");
       }
     );
+    this.UIContainer.addChild(this.showIonFlow);
+
+    // 離子顯示checkbox
+    this.ionCon = createCheckboxBlock(
+      "顯示離子",
+      1650,
+      75,
+      () => {
+        this.electrolysisModule.toggleIonAnimation(true);
+      },
+      () => {
+        this.electrolysisModule.toggleIonAnimation(false);
+      }
+    );
     this.UIContainer.addChild(this.ionCon);
 
-    // 電路模組按鈕，模組一電解組合邏輯
+    // 創建模組設置器
+    const moduleSetup = new ModuleSetup(this.itemCanvas);
+
     this.setbtnCon.on("pointerup", () => {
-      console.log("組合模組");
+      this.electrolysisModule.showStatusText("組裝中...");
+      moduleSetup.setupElectrolysisModule();
+      this.electrolysisModule.isAssembled = true;
+      this.electrolysisModule.validCircuit = true;
+      this.electrolysisModule.isAllitem = true;
     });
 
     // 標題
     this.UIContainer.addChild(this.topicCon);
+    this.topicText.text = "模組一｜電解實驗模組";
 
-    // 創建液體下拉選單
+    // 液體下拉選單
     const liquids = new DropdownMenu({
       x: 1450,
-      y: 210,
-      items: ["純水", "自來水", "氯化鈉(液體)", "糖(液體)", "氯化鈉(固體)", "糖(固體)", "酒精", "鹽酸", "醋酸", "氫氧化鈉", "小蘇打粉", "氯化銅"],
+      y: 290,
+      items: Object.keys(this.electrolysisModule.solutionProperties),
       label: "選擇溶液",
       columns: 2,
       prefix: "溶液",
       hoverColor: 0xf0f0f0,
     });
-    liquids.onSelect = (item) => console.log("Selected liquid:", item);
+
+    liquids.onSelect = (item) => {
+      this.electrolysisModule.setSolution(item);
+    };
     this.UIContainer.addChild(liquids.container);
   }
 
@@ -325,6 +349,7 @@ class Game {
   modlePage2() {
     this.sceneContainer.removeChildren();
     this.UIContainer.removeChildren();
+    this.itemCanvas.reset();
     this.UIContainer.addChild(this.reloadbtn); //重新整理按鈕
     this.UIContainer.addChild(this.scaleUpCon); //放大縮小按鈕
     this.UIContainer.addChild(this.setbtnCon); //電路模組按鈕
@@ -334,16 +359,6 @@ class Game {
     //清單項目
     const draggableList = new ItemsList(this.imageList, this.itemCanvas, 5, [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
     this.UIContainer.addChild(draggableList.container);
-
-    // 顯示離子流向按鈕
-    this.showIonFlowBtn = createButton({
-      text: "顯示離子流向",
-      x: 1752,
-      y: 255,
-      onClick: () => {
-        console.log("2");
-      },
-    });
 
     // 開始電解按鈕
     this.startElectrolysisBtn = createButton({
@@ -363,9 +378,23 @@ class Game {
         console.log("222");
       },
     });
-    this.UIContainer.addChild(this.showIonFlowBtn); //顯示離子流向按鈕
+
     this.UIContainer.addChild(this.startElectrolysisBtn); //開始電解按鈕
     this.UIContainer.addChild(this.checkBtn); //組裝完成按鈕
+
+    // 顯示離子流向按鈕
+    this.showIonFlow = createCheckboxBlock(
+      "顯示離子流向",
+      1650,
+      75,
+      () => {
+        console.log("顯示離子");
+      },
+      () => {
+        console.log("隱藏離子");
+      }
+    );
+    this.UIContainer.addChild(this.showIonFlow);
 
     // 離子顯示checkbox
     this.ionCon = createCheckboxBlock(
@@ -439,6 +468,7 @@ class Game {
   modlePage3() {
     this.sceneContainer.removeChildren();
     this.UIContainer.removeChildren();
+    this.itemCanvas.reset();
     this.UIContainer.addChild(this.reloadbtn); //重新整理按鈕
     this.UIContainer.addChild(this.scaleUpCon); //放大縮小按鈕
     this.UIContainer.addChild(this.setbtnCon); //電路模組按鈕
@@ -454,14 +484,19 @@ class Game {
     });
 
     // 顯示離子流向按鈕
-    this.showIonFlowBtn = createButton({
-      text: "顯示離子流向",
-      x: 1548,
-      y: 160,
-      onClick: () => {
-        console.log("2");
+    this.showIonFlow = createCheckboxBlock(
+      "顯示離子流向",
+      1650,
+      75,
+      () => {
+        console.log("顯示離子");
       },
-    });
+      () => {
+        console.log("隱藏離子");
+      }
+    );
+    this.UIContainer.addChild(this.showIonFlow);
+
     // 離子顯示checkbox
     this.ionCon = createCheckboxBlock(
       "顯示離子",
@@ -496,13 +531,17 @@ class Game {
     this.UIContainer.addChild(drugs.container);
   }
 
-  update(time) {}
+  update(time) {
+    if (this.electrolysisModule) {
+      this.electrolysisModule.update(time);
+    }
+  }
 }
 
 function createCheckboxBlock(text, x, y, onShow, onHide) {
   const ionText = new Text({ text: text, style: defaultStyle });
-  ionText.anchor.set(0.5);
-  ionText.x = -70;
+  ionText.anchor.set(0, 0.5);
+  ionText.x = -130;
 
   const ionBg = new Graphics();
   ionBg.roundRect(-200, -40, 400, 80, 10);

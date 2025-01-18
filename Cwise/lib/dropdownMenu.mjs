@@ -116,7 +116,10 @@ export class DropdownMenu {
   }
 
   selectItem(item) {
-    this.toggleDropdown();
+    const buttonText = this.button.children[1];
+    // Update button text without closing dropdown
+    buttonText.text = this.prefix ? `${this.prefix}：${item}` : item;
+
     if (this.onSelect) {
       this.onSelect(item);
     }
