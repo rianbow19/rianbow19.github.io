@@ -387,7 +387,8 @@ class ElectrolysisModule {
       if (component.ions) {
         component.ions.forEach((ion) => {
           // 只有在動畫中時顯示燒杯離子
-          ion.visible = show && (component.type === "燒杯" || this.ionMoving);
+          //ion.visible = show && (component.type === "燒杯" || this.ionMoving);
+          ion.visible = show;
         });
       }
     });
@@ -423,7 +424,7 @@ class ElectrolysisModule {
     allPoints.sort((a, b) => {
       const angleA = Math.atan2(a.y - center.y, a.x - center.x);
       const angleB = Math.atan2(b.y - center.y, b.x - center.x);
-      return angleB - angleA;
+      return angleA - angleB;
     });
 
     // 創建新的動畫
@@ -432,9 +433,9 @@ class ElectrolysisModule {
         component.ions.forEach((ion, ionIndex) => {
           if (ion.tween) ion.tween.kill();
 
-          ion.visible = true;
-          // 設置初始位置偏移，讓離子均勻分布在路徑上
+          // 儲存原始的 progress 值
           const initialOffset = ionIndex / component.ions.length;
+          ion.originalProgress = initialOffset; // 新增這行
           ion.progress = initialOffset;
 
           const tween = gsap.to(ion, {
@@ -481,27 +482,59 @@ class ElectrolysisModule {
           if (ion.tween) {
             ion.tween.kill();
           }
-          // 重置離子到原始位置
+
+          // 重置離子位置
           if (component.type === "Wire") {
-            // 電線組件需要通過 redrawWire 重置離子位置
+            // 儲存原始的 progress 值
+            const originalProgress = ion.originalProgress || 0;
+
+            // 使用組件的實際 joints 位置重新計算
             const joint1 = component.joints[0];
             const joint2 = component.joints[1];
-            ion.x = joint1.x + (joint2.x - joint1.x) * ion.progress;
-            ion.y = joint1.y + (joint2.y - joint1.y) * ion.progress;
+
+            // 確保 joints 存在且有正確的位置
+            if (joint1 && joint2) {
+              // 計算新的位置
+              ion.x = joint1.x + (joint2.x - joint1.x) * originalProgress;
+              ion.y = joint1.y + (joint2.y - joint1.y) * originalProgress;
+
+              // 重置當前 progress 為原始值
+              ion.progress = originalProgress;
+            }
           } else {
-            const config = this.itemCanvas.ionConfigs[component.type + ".png"]?.find((pos) => pos.x === ion.originalX && pos.y === ion.originalY);
-            if (config) {
-              ion.x = config.x;
-              ion.y = config.y;
+            // 非電線組件的離子重置
+            if (ion.originalX !== undefined && ion.originalY !== undefined) {
+              ion.x = ion.originalX;
+              ion.y = ion.originalY;
             }
           }
-          // 只有在不動畫時顯示燒杯離子
-          ion.visible = component.type === "燒杯" && this.ionVisible;
+
+          // 更新可見性
+          //ion.visible = component.type === "燒杯" && this.ionVisible;
+          ion.visible = this.ionVisible;
         });
       }
-      // 如果是電線組件，調用 redrawWire 重新繪製
-      if (component.type === "Wire" && component.redrawWire) {
-        component.redrawWire();
+
+      // 如果是電線組件，重新繪製並重新定位離子
+      if (component.type === "Wire") {
+        // 首先重新繪製電線
+        if (component.redrawWire) {
+          component.redrawWire();
+        }
+
+        // 然後重新定位所有離子
+        if (component.ions) {
+          component.ions.forEach((ion) => {
+            const originalProgress = ion.originalProgress || 0;
+            const joint1 = component.joints[0];
+            const joint2 = component.joints[1];
+
+            if (joint1 && joint2) {
+              ion.x = joint1.x + (joint2.x - joint1.x) * originalProgress;
+              ion.y = joint1.y + (joint2.y - joint1.y) * originalProgress;
+            }
+          });
+        }
       }
     });
   }
@@ -524,14 +557,6 @@ class ElectrolysisModule {
 
   // 更新
   update(deltaTime) {
-    const currentTime = Date.now();
-
-    // Only check pH paper connection periodically
-    if (currentTime - this.lastPHCheckTime >= this.PHCheckInterval) {
-      this.handlePHPaperConnection();
-      this.lastPHCheckTime = currentTime;
-    }
-
     if (this.ionAnimationActive && this.ions.length > 0) {
       // 更新連接組件的離子位置
       this.ions.forEach((ion) => {
@@ -552,105 +577,191 @@ class ModuleSetup {
     this.itemCanvas = itemCanvas;
     this.centerX = 960;
     this.centerY = 540;
+    this.components = null;
   }
 
   setupElectrolysisModule() {
     // 重置畫布
     this.itemCanvas.reset();
 
-    // 在中央偏下方創建燒杯
-    const beaker = this.createComponent("燒杯.png", {
-      x: this.centerX,
-      y: this.centerY + 300,
-    });
+    // 創建所有組件並儲存引用
+    const components = this.createAllComponents();
+    this.components = components;
 
-    // 在燒杯上方偏左創建電池
-    const battery = this.createComponent("電池.png", {
-      x: this.centerX - 200,
-      y: this.centerY - 150,
-    });
+    // 先設置所有組件的位置
+    this.positionAllComponents(components);
 
-    // 在電池右側創建燈泡
-    const bulb = this.createComponent("燈泡.png", {
-      x: this.centerX + 200,
-      y: this.centerY - 200,
-    });
+    // 調整所有電線的位置和形狀
+    this.adjustWirePositions(components);
 
-    // 在燒杯內創建碳棒
-    const leftRod = this.createComponent("碳棒.png", {
-      x: this.centerX - 70,
-      y: this.centerY + 200,
-    });
+    // 強制進行一次全局位置更新
+    this.updateGlobalPositions(components);
 
-    const rightRod = this.createComponent("碳棒.png", {
-      x: this.centerX + 120,
-      y: this.centerY + 200,
-    });
+    // 建立所有連接並確保它們保持連接狀態
+    this.forceConnectAllComponents(components);
 
-    // 創建連接電線
-    // 從電池到左碳棒的電線
-    const wire1 = this.createComponent("電線.png", {
-      x: this.centerX - 70,
-      y: this.centerY - 50,
-    });
+    return components;
+  }
 
-    // 從左碳棒到燈泡（底部連接）的電線
-    const wire2 = this.createComponent("電線.png", {
-      x: this.centerX + 50,
-      y: this.centerY - 50,
-    });
-
-    // 從燈泡到右碳棒的電線
-    const wire3 = this.createComponent("電線.png", {
-      x: this.centerX + 150,
-      y: this.centerY,
-    });
-
-    // 從右碳棒到電池的電線
-    const wire4 = this.createComponent("電線.png", {
-      x: this.centerX - 50,
-      y: this.centerY + 110,
-    });
-
-    // 等待組件載入後再建立連接
-    setTimeout(() => {
-      // 按圖片中所示的順序連接組件
-      this.connectComponents([
-        battery, // 從電池開始
-        wire1, // 連接到第一條電線
-        leftRod, // 連接到左碳棒
-        wire2, // 連接到第二條電線
-        bulb, // 連接到燈泡
-        wire3, // 連接到第三條電線
-        rightRod, // 連接到右碳棒
-        wire4, // 連接到第四條電線
-        battery, // 完成回到電池的電路
-      ]);
-
-      // 調整電線位置以匹配圖片中的橙色電線
-      this.adjustWirePositions({
-        wire1,
-        wire2,
-        wire3,
-        wire4,
-        battery,
-        leftRod,
-        rightRod,
-        bulb,
-      });
-    }, 500);
-
+  createAllComponents() {
+    // 創建組件的代碼保持不變
     return {
-      beaker,
-      battery,
-      leftRod,
-      rightRod,
-      bulb,
-      wire1,
-      wire2,
-      wire3,
-      wire4,
+      beaker: this.createComponent("燒杯.png", {
+        x: this.centerX,
+        y: this.centerY + 300,
+      }),
+      battery: this.createComponent("電池.png", {
+        x: this.centerX - 200,
+        y: this.centerY - 150,
+      }),
+      bulb: this.createComponent("燈泡.png", {
+        x: this.centerX + 200,
+        y: this.centerY - 200,
+      }),
+      leftRod: this.createComponent("碳棒.png", {
+        x: this.centerX - 70,
+        y: this.centerY + 200,
+      }),
+      rightRod: this.createComponent("碳棒.png", {
+        x: this.centerX + 120,
+        y: this.centerY + 200,
+      }),
+      wire1: this.createComponent("電線.png", {
+        x: this.centerX - 70,
+        y: this.centerY - 50,
+      }),
+      wire2: this.createComponent("電線.png", {
+        x: this.centerX + 50,
+        y: this.centerY - 50,
+      }),
+      wire3: this.createComponent("電線.png", {
+        x: this.centerX + 150,
+        y: this.centerY,
+      }),
+      wire4: this.createComponent("電線.png", {
+        x: this.centerX - 50,
+        y: this.centerY + 110,
+      }),
     };
+  }
+
+  positionAllComponents(components) {
+    // 為每個組件設置正確的初始位置和旋轉
+    Object.entries(components).forEach(([name, component]) => {
+      if (!component) return;
+
+      // 根據組件類型設置特定位置
+      switch (name) {
+        case "beaker":
+          component.zIndex = 1000;
+          break;
+      }
+
+      // 確保組件的所有連接點都被正確初始化
+      if (component.joints) {
+        component.joints.forEach((joint) => {
+          joint.connected = false;
+          joint.tint = 0xffffff;
+        });
+      }
+    });
+
+    // 確保組件層級正確
+    if (this.itemCanvas.components) {
+      this.itemCanvas.components.sortableChildren = true;
+    }
+  }
+
+  forceConnectAllComponents(components) {
+    // 定義預期的連接順序
+    const connections = [
+      ["leftRod", "beaker"],
+      ["wire1", "leftRod"],
+      ["wire1", "wire2"],
+      ["battery", "wire2"],
+      ["battery", "wire3"],
+      ["wire3", "bulb"],
+      ["bulb", "wire4"],
+      ["wire4", "rightRod"],
+      ["rightRod", "beaker"],
+    ];
+
+    // 強制建立所有連接
+    connections.forEach(([fromName, toName]) => {
+      const fromComp = components[fromName];
+      const toComp = components[toName];
+
+      if (!fromComp || !toComp) return;
+
+      // 獲取兩個組件的所有連接點的全局位置
+      const fromJoints = fromComp.joints.map((joint) => {
+        const globalPos = fromComp.toGlobal(joint.position);
+        return { joint, globalPos };
+      });
+
+      const toJoints = toComp.joints.map((joint) => {
+        const globalPos = toComp.toGlobal(joint.position);
+        return { joint, globalPos };
+      });
+
+      // 找到最近的一對連接點
+      let minDist = Infinity;
+      let bestPair = null;
+
+      fromJoints.forEach((from) => {
+        toJoints.forEach((to) => {
+          const dx = from.globalPos.x - to.globalPos.x;
+          const dy = from.globalPos.y - to.globalPos.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (dist < minDist && !from.joint.connected && !to.joint.connected) {
+            minDist = dist;
+            bestPair = { from: from.joint, to: to.joint };
+          }
+        });
+      });
+
+      // 強制建立連接
+      if (bestPair) {
+        bestPair.from.connected = true;
+        bestPair.to.connected = true;
+        bestPair.from.tint = 0x00ff00;
+        bestPair.to.tint = 0x00ff00;
+
+        // 設置組件的連接組
+        if (fromComp.connectedComponent === -1 && toComp.connectedComponent === -1) {
+          const newGroup = this.itemCanvas.connectedGroups.length;
+          this.itemCanvas.connectedGroups.push(newGroup);
+          fromComp.connectedComponent = newGroup;
+          toComp.connectedComponent = newGroup;
+        } else if (fromComp.connectedComponent === -1) {
+          fromComp.connectedComponent = toComp.connectedComponent;
+        } else if (toComp.connectedComponent === -1) {
+          toComp.connectedComponent = fromComp.connectedComponent;
+        }
+      }
+    });
+
+    // 最後再次檢查所有連接
+    this.itemCanvas.recheckAllConnections();
+  }
+
+  updateGlobalPositions(components) {
+    Object.values(components).forEach((component) => {
+      if (!component || !component.joints) return;
+
+      // 更新每個組件的所有連接點的全局位置
+      component.joints.forEach((joint) => {
+        const globalPos = component.toGlobal(joint.position);
+        joint.globalX = globalPos.x;
+        joint.globalY = globalPos.y;
+      });
+
+      // 如果是電線，確保重新繪製
+      if (component.redrawWire) {
+        component.redrawWire();
+      }
+    });
   }
 
   adjustWirePositions(components) {

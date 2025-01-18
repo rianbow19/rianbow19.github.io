@@ -84,9 +84,9 @@ export class ItemsCanvas {
     // 新增離子配置
     this.ionConfigs = {
       "電池.png": [
-        { x: -30, y: 0 },
+        { x: -90, y: 0 },
         { x: 0, y: 0 },
-        { x: 30, y: 0 },
+        { x: 90, y: 0 },
       ],
       "燈泡.png": [
         { x: -5, y: 90 },
@@ -178,6 +178,11 @@ export class ItemsCanvas {
       const scale = sprite.texture.width / Math.max(sprite.texture.width, sprite.texture.height);
       sprite.scale.set(scale);
 
+      if (imagePath === "燒杯.png") {
+        sceneContainer.zIndex = 1000; // 使用高數值確保在最上層
+        this.components.sortableChildren = true; // 啟用容器的子元素排序
+      }
+
       const jointConfig = this.jointConfigs[imagePath] || [];
 
       sceneContainer.joints = jointConfig.map((config) => {
@@ -209,7 +214,7 @@ export class ItemsCanvas {
   }
 
   createWireIons(container) {
-    const numIons = 4; // 離子數量
+    const numIons = 4;
     const joint1 = container.joints[0];
     const joint2 = container.joints[1];
 
@@ -221,15 +226,22 @@ export class ItemsCanvas {
       ion.fill(0x00008b);
       ion.visible = false;
 
-      // 計算離子在兩點之間的相對位置
-      ion.progress = (i + 1) / (numIons + 1);
+      // 修改：使用均勻分布的 progress 值
+      const progress = i / (numIons - 1); // 這樣會得到 0, 0.33, 0.66, 1
+      ion.progress = progress;
+      ion.originalProgress = progress; // 保存原始進度值
 
-      // 設置初始位置（線性插值）
-      ion.x = joint1.x + (joint2.x - joint1.x) * ion.progress;
-      ion.y = joint1.y + (joint2.y - joint1.y) * ion.progress;
+      // 設置初始位置
+      ion.x = joint1.x + (joint2.x - joint1.x) * progress;
+      ion.y = joint1.y + (joint2.y - joint1.y) * progress;
 
       container.addChild(ion);
       container.ions.push(ion);
+    }
+
+    // 確保重新繪製電線以更新離子位置
+    if (container.redrawWire) {
+      container.redrawWire();
     }
   }
 

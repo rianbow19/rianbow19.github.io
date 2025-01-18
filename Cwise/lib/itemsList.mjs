@@ -184,7 +184,7 @@ export class ItemsList {
       const dragDistance = Math.sqrt(Math.pow(currentPos.x - this.dragStartPosition.x, 2) + Math.pow(currentPos.y - this.dragStartPosition.y, 2));
 
       // 只有當拖曳距離大於 50 時才創建物件
-      if (dragDistance > 300) {
+      if (dragDistance > 200) {
         const position = event.getLocalPosition(this.itemCanvas.container);
         this.itemCanvas.createSceneItem(this.draggedSprite.imagePath, position);
       }

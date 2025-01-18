@@ -33,7 +33,7 @@ class Game {
     this.isZoomedIn = false;
     this.itemCanvas = new ItemsCanvas();
 
-    this.baseModel = false;
+    this.inPage1 = false;
     // 創建電解實驗模組
     this.electrolysisModule = new ElectrolysisModule(this.itemCanvas);
 
@@ -167,6 +167,7 @@ class Game {
   async startTitle() {
     this.sceneContainer.removeChildren();
     this.UIContainer.removeChildren();
+    this.inPage1 = false;
 
     const bg = new Sprite(Texture.from("底圖.png"));
     bg.y = -80;
@@ -264,12 +265,14 @@ class Game {
 
     this.sceneContainer.addChild(this.itemCanvas.container); //場景畫布
 
+    this.inPage1 = true;
+
     //清單項目
     const draggableList = new ItemsList(
       this.imageList,
       this.itemCanvas,
       5, //項目數
-      [4, 0, 1, 2, 3, 5] // 選定的索引
+      [0, 4] // 選定的索引
     );
     this.UIContainer.addChild(draggableList.container);
 
@@ -315,19 +318,18 @@ class Game {
     );
     this.UIContainer.addChild(this.ionCon);
 
-    // 創建模組設置器
-    const moduleSetup = new ModuleSetup(this.itemCanvas);
-
     this.setbtnCon.on("pointerup", () => {
       this.electrolysisModule.showStatusText("組裝中...");
-      moduleSetup.setupElectrolysisModule();
+      // 直接設置組件
+      const components = this.electrolysisModule.moduleSetup.setupElectrolysisModule();
+
+      // 更新狀態
       this.electrolysisModule.isAssembled = true;
       this.electrolysisModule.validCircuit = true;
       this.electrolysisModule.isAllitem = true;
 
-      // If ions are supposed to be visible, show them immediately
+      // 如果需要顯示離子
       if (this.ionCon?.children[3]?.visible) {
-        // Check if checkbox is checked
         this.electrolysisModule.toggleIonAnimation(true);
       }
     });
@@ -540,8 +542,16 @@ class Game {
   }
 
   update(time) {
+    const currentTime = Date.now();
     if (this.electrolysisModule) {
       this.electrolysisModule.update(time);
+      if (this.inPage1) {
+        // Only check pH paper connection periodically
+        if (currentTime - this.electrolysisModule.lastPHCheckTime >= this.electrolysisModule.PHCheckInterval) {
+          this.electrolysisModule.handlePHPaperConnection();
+          this.electrolysisModule.lastPHCheckTime = currentTime;
+        }
+      }
     }
   }
 }
