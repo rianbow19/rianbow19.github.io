@@ -53,11 +53,11 @@ export class DropdownMenu {
 
     this.button.eventMode = "static";
     this.button.cursor = "pointer";
-    this.button.on("pointerdown", () => this.toggleDropdown());
+    // 移除 pointerdown 事件監聽
 
     this.menuContainer = new Container();
     this.menuContainer.y = this.itemHeight + 2;
-    this.menuContainer.visible = false;
+    this.menuContainer.visible = true; // 改為始終可見
     this.container.addChild(this.menuContainer);
 
     this.items.forEach((item, index) => {
@@ -100,20 +100,13 @@ export class DropdownMenu {
 
       itemContainer.on("pointerdown", () => {
         this.selectItem(item);
-        // 添加前綴到選中的文字
         buttonText.text = this.prefix ? `${this.prefix}：${item}` : item;
-        arrow.rotation = 0;
+        // 移除 arrow.rotation = 0;
       });
     });
   }
 
-  toggleDropdown() {
-    this.isOpen = !this.isOpen;
-    this.menuContainer.visible = this.isOpen;
-
-    const arrow = this.button.children[2];
-    arrow.rotation = this.isOpen ? Math.PI : 0;
-  }
+  // 移除 toggleDropdown 方法
 
   selectItem(item) {
     const buttonText = this.button.children[1];

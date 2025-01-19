@@ -132,10 +132,10 @@ export class ItemsCanvas {
 
       sceneContainer.redrawWire();
     } else if (imagePath === "廣用試紙.png") {
-      const paperBody = new Graphics().rect(-40, -100, 80, 200).fill(0x01ea00);
+      const paperBody = new Graphics().rect(-40, -150, 80, 300).fill(0x01ea00);
 
       // 創建測試區域（會變色的部分）
-      const testStrip = new Graphics().rect(-40, 0, 80, 100).fill(0x01ea00);
+      const testStrip = new Graphics().rect(-40, 0, 80, 150).fill(0x01ea00);
 
       sceneContainer.testStrip = testStrip; // 存儲測試區域的引用
       sceneContainer.addChild(paperBody, testStrip);

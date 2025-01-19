@@ -272,7 +272,7 @@ export class ElectrolysisModule {
     const colorHex = this.colorToHex(color);
 
     // 更新測試條顏色
-    testStrip.clear().rect(-40, 0, 80, 100).fill(colorHex);
+    testStrip.clear().rect(-40, 0, 80, 150).fill(colorHex);
   }
 
   // 顏色名稱轉換為十六進制
