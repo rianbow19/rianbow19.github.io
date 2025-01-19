@@ -250,6 +250,9 @@ export class ItemsList {
           // 創建新物件
           const position = event.getLocalPosition(this.itemCanvas.container);
           this.itemCanvas.createSceneItem(imagePath, position);
+          if (imagePath === "燒杯.png") {
+            this.itemCanvas.beakerPlaced = true;
+          }
 
           // 如果是限制物件，更新狀態並重新整理列表
           if (this.restrictedItems.hasOwnProperty(imagePath)) {
