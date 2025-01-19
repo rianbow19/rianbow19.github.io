@@ -84,25 +84,13 @@ export class ItemsCanvas {
 
     // 新增離子配置
     this.ionConfigs = {
-      "電池.png": [
-        { x: -90, y: 0 },
-        { x: 0, y: 0 },
-        { x: 90, y: 0 },
-      ],
-      "燈泡.png": [
-        { x: -5, y: 90 },
-        { x: 5, y: 90 },
-      ],
-      "碳棒.png": [
-        { x: 0, y: -50 },
-        { x: 0, y: 0 },
-        { x: 0, y: 50 },
-      ],
-      "燒杯.png": [
-        { x: -50, y: 30 },
-        { x: 30, y: 30 },
-        { x: 110, y: 30 },
-      ],
+      "燒杯.png": {
+        positions: [],
+        count: {
+          positive: 15,
+          negative: 15,
+        },
+      },
     };
   }
 
@@ -115,7 +103,7 @@ export class ItemsCanvas {
     sceneContainer.x = position.x;
     sceneContainer.y = position.y;
     sceneContainer.connectedComponent = -1;
-    sceneContainer.type = imagePath.replace(".png", ""); // 新增此行以設置所有組件的類型
+    sceneContainer.type = imagePath.replace(".png", "");
 
     if (this.itemsList) {
       requestAnimationFrame(() => {
@@ -127,6 +115,7 @@ export class ItemsCanvas {
     sceneContainer.ions = [];
 
     if (imagePath === "電線.png") {
+      // 移除電線的離子創建，保持其他電線相關代碼
       sceneContainer.type = "Wire";
       const wireBody = new Graphics();
       wireBody.eventMode = "static";
@@ -153,17 +142,10 @@ export class ItemsCanvas {
       sceneContainer.wireBody = wireBody;
       sceneContainer.redrawWire = function () {
         this.wireBody.clear();
-
         this.wireBody.moveTo(this.joints[0].x, this.joints[0].y).lineTo(this.joints[1].x, this.joints[1].y).stroke({ width: 20, color: 0xff8000 });
-        //更新離子位置
-        this.ions.forEach((ion) => {
-          ion.x = this.joints[0].x + (this.joints[1].x - this.joints[0].x) * ion.progress;
-          ion.y = this.joints[0].y + (this.joints[1].y - this.joints[0].y) * ion.progress;
-        });
       };
 
       sceneContainer.redrawWire();
-      this.createWireIons(sceneContainer);
     } else if (imagePath === "廣用試紙.png") {
       const paperBody = new Graphics().rect(-40, -100, 80, 200).fill(0x01ea00);
 
@@ -190,16 +172,16 @@ export class ItemsCanvas {
       sprite.scale.set(scale);
 
       if (imagePath === "燒杯.png") {
-        sceneContainer.zIndex = 1000; // 使用高數值確保在最上層
-        this.components.sortableChildren = true; // 啟用容器的子元素排序
+        sceneContainer.zIndex = 1000;
+        this.components.sortableChildren = true;
+        // 為燒杯創建離子
+        this.createBeakerIons(sceneContainer);
       }
 
       const jointConfig = this.jointConfigs[imagePath] || [];
-
       sceneContainer.joints = jointConfig.map((config) => {
         const joint = new Graphics().circle(0, 0, 20).fill({ color: 0x00ff00, alpha: 0 }).stroke({ color: 0xadadad, width: 6, alpha: 0.3 });
 
-        // 計算連結點位置
         joint.position.set((config.x - 0.5) * sprite.width, (config.y - 0.5) * sprite.height);
         joint.connected = false;
         joint.eventMode = "static";
@@ -210,7 +192,6 @@ export class ItemsCanvas {
       });
 
       sceneContainer.addChild(sprite);
-      this.createComponentIons(sceneContainer, imagePath);
     }
 
     sceneContainer.joints.forEach((joint) => sceneContainer.addChild(joint));
@@ -221,63 +202,81 @@ export class ItemsCanvas {
     sceneContainer.getGlobalJointPositions = () => sceneContainer.joints.map((joint) => sceneContainer.toGlobal(joint.position));
 
     this.components.addChild(sceneContainer);
-
     return sceneContainer;
   }
 
-  createWireIons(container) {
-    const numIons = 4;
-    const joint1 = container.joints[0];
-    const joint2 = container.joints[1];
+  // 燒杯離子創建方法
+  createBeakerIons(container) {
+    const { positive, negative } = this.ionConfigs["燒杯.png"].count;
+    const beakerWidth = 160; // 燒杯寬度
+    const beakerHeight = 80; // 燒杯高度
 
-    for (let i = 0; i < numIons; i++) {
-      const ion = new Graphics();
-      ion.circle(0, 0, 15);
-      ion.fill(0x87ceeb);
-      ion.rect(-5, -2, 12, 5);
-      ion.fill(0x00008b);
-      ion.visible = false;
-
-      // 修改：使用均勻分布的 progress 值
-      const progress = i / (numIons - 1); // 這樣會得到 0, 0.33, 0.66, 1
-      ion.progress = progress;
-      ion.originalProgress = progress; // 保存原始進度值
-
-      // 設置初始位置
-      ion.x = joint1.x + (joint2.x - joint1.x) * progress;
-      ion.y = joint1.y + (joint2.y - joint1.y) * progress;
-
+    // 創建正離子
+    for (let i = 0; i < positive; i++) {
+      const ion = this.createIon(true);
+      this.setRandomPosition(ion, beakerWidth, beakerHeight);
       container.addChild(ion);
       container.ions.push(ion);
     }
 
-    // 確保重新繪製電線以更新離子位置
-    if (container.redrawWire) {
-      container.redrawWire();
+    // 創建負離子
+    for (let i = 0; i < negative; i++) {
+      const ion = this.createIon(false);
+      this.setRandomPosition(ion, beakerWidth, beakerHeight);
+      container.addChild(ion);
+      container.ions.push(ion);
     }
   }
 
-  createComponentIons(container, imagePath) {
-    const config = this.ionConfigs[imagePath] || [];
-    config.forEach((pos) => {
-      const ion = new Graphics();
-      ion.circle(0, 0, 15);
-      ion.fill(0x87ceeb);
-      ion.rect(-5, -2, 12, 5);
-      ion.fill(0x00008b);
-      ion.visible = false;
+  // 離子創建方法
+  createIon(isPositive) {
+    const ionContainer = new Container(); // 創建容器來存放離子和標誌
 
-      // 儲存原始位置以便重置
-      ion.originalX = pos.x;
-      ion.originalY = pos.y;
+    // 創建離子本體
+    const ionBody = new Graphics();
+    ionBody.circle(0, 0, 15);
+    ionBody.fill(0x0077cc);
 
-      ion.x = pos.x;
-      ion.y = pos.y;
-      ion.progress = 0;
+    // 創建正負極標誌
+    const polarityMarker = new Graphics();
+    if (isPositive) {
+      // 正號
+      polarityMarker.rect(-8, -2, 16, 5);
+      polarityMarker.rect(-2, -8, 5, 16);
+    } else {
+      // 負號
+      polarityMarker.rect(-8, -2, 16, 5);
+    }
+    polarityMarker.fill(isPositive ? 0xff0000 : 0x0000ff);
 
-      container.addChild(ion);
-      container.ions.push(ion);
+    // 將兩個部分加入容器
+    ionContainer.addChild(ionBody);
+    ionContainer.addChild(polarityMarker);
+
+    // 設置屬性
+    ionContainer.isPositive = isPositive;
+    ionContainer.ionBody = ionBody;
+    ionContainer.polarityMarker = polarityMarker;
+    ionContainer.visible = false;
+    polarityMarker.visible = false; // 預設隱藏極性標誌
+
+    return ionContainer;
+  }
+
+  // 極性標誌顯示
+  togglePolarityMarkers(visible) {
+    this.components.children.forEach((component) => {
+      if (component.type === "燒杯") {
+        component.ions.forEach((ion) => {
+          ion.polarityMarker.visible = visible;
+        });
+      }
     });
+  }
+
+  setRandomPosition(ion, width, height) {
+    ion.x = Math.random() * 260 - 100;
+    ion.y = Math.random() * 230 - 70;
   }
 
   onDragStart(event, target, joint = null) {

@@ -9,6 +9,7 @@ class ElectrolysisModule {
     this.selectedSolution = null;
     this.ionAnimationActive = false;
     this.connectedPHPaper = null;
+    this.isIonCheckboxChecked = false;
 
     // 新增模組設置實例
     this.moduleSetup = new ModuleSetup(itemCanvas);
@@ -23,6 +24,12 @@ class ElectrolysisModule {
     this.PHCheckInterval = 500;
     this.lastPHPaperPosition = null;
     this.lastBeakerPosition = null;
+
+    this.bulbLight = null;
+    this.statusText = null;
+    this.ionMoving = false;
+    this.randomAnimations = []; // 用於儲存隨機移動的動畫
+    this.electrodesAnimations = []; // 用於儲存電極移動的動畫
 
     // 溶液特性配置
     this.solutionProperties = {
@@ -87,13 +94,6 @@ class ElectrolysisModule {
         phColor: "green",
       },
     };
-    this.bulbLight = null; // 儲存燈光精靈參考
-    this.statusText = null; // 儲存狀態文字
-    this.ions = [];
-    this.animationFrame = null;
-    this.activeIonTweens = []; // 用於追蹤 GSAP 動畫
-    this.ionVisible = false;
-    this.ionMoving = false;
   }
 
   // 檢查電路是否正確連接
@@ -164,11 +164,7 @@ class ElectrolysisModule {
 
   // 開始電解實驗
   startElectrolysis() {
-    this.stopIonAnimation();
-    this.resetBulbLight();
-
     if (!this.isAllitem) {
-      // 再次驗證電路
       this.validateCircuit();
 
       if (!this.isAssembled) {
@@ -187,9 +183,11 @@ class ElectrolysisModule {
       return false;
     }
 
-    this.startIonMovement();
-
     const solutionProps = this.solutionProperties[this.selectedSolution];
+
+    // 停止隨機移動，開始電極移動
+    this.stopRandomMovement();
+    this.startElectrodesMovement();
 
     // 顯示 "電解中" 文字
     this.showStatusText("電解中");
@@ -198,10 +196,7 @@ class ElectrolysisModule {
     this.updateBulbBrightness(solutionProps.brightness);
     this.updateBeakerColor(solutionProps.color);
 
-    // 如果有連接廣用試紙，更新其顏色
-    //this.handlePHPaperConnection();
     this.ionMoving = true;
-
     return true;
   }
 
@@ -371,184 +366,192 @@ class ElectrolysisModule {
   setSolution(solutionName) {
     if (this.solutionProperties[solutionName]) {
       this.selectedSolution = solutionName;
-      this.resetBulbLight(); // 切換溶液時重置燈泡
-      this.stopIonAnimation(); // 切換溶液時停止離子動畫
+      this.resetBulbLight();
+
+      // 停止所有動畫
+      this.stopRandomMovement();
+      this.stopElectrodesMovement();
+      this.ionMoving = false;
+
       this.updateBeakerColor(this.solutionProperties[solutionName].color);
+
+      // 根據 checkbox 狀態決定是否顯示離子
+      if (this.isIonCheckboxChecked) {
+        this.toggleIonAnimation(true);
+      }
     }
-    //this.handlePHPaperConnection();
   }
 
-  // 切換離子動畫
-  toggleIonAnimation(show) {
-    this.ionVisible = show;
-    const components = this.itemCanvas.components.children;
+  // 開始隨機移動動畫
+  startRandomMovement() {
+    const beaker = this.findComponentByType("燒杯");
+    if (!beaker || !beaker.ions) return;
 
-    components.forEach((component) => {
-      if (component.ions) {
-        component.ions.forEach((ion) => {
-          // 只有在動畫中時顯示燒杯離子
-          ion.visible = show && (component.type === "燒杯" || this.ionMoving);
+    // 清除現有的隨機動畫
+    this.stopRandomMovement();
+
+    beaker.ions.forEach((ion) => {
+      ion.visible = true;
+
+      // 創建隨機移動的動畫
+      const createRandomMovement = () => {
+        const newX = Math.random() * 260 - 100; // 範圍 [-110, 150]
+        const newY = Math.random() * 230 - 70; // 範圍 [-80, 150]
+
+        const duration = 10 + Math.random() * 10; // 2-4秒的隨機持續時間
+
+        return gsap.to(ion, {
+          x: newX,
+          y: newY,
+          duration: duration,
+          ease: "none",
+          onComplete: () => {
+            // 動畫完成後創建新的移動
+            const newAnim = createRandomMovement();
+            // 更新動畫引用
+            const index = this.randomAnimations.findIndex((a) => a.target === ion);
+            if (index !== -1) {
+              this.randomAnimations[index] = newAnim;
+            }
+          },
         });
-      }
+      };
+
+      const anim = createRandomMovement();
+      this.randomAnimations.push(anim);
     });
   }
 
-  // 開始離子移動
-  startIonMovement() {
-    if (!this.validCircuit || !this.selectedSolution) return;
-    this.ionMoving = true;
+  // 停止隨機移動動畫
+  stopRandomMovement() {
+    this.randomAnimations.forEach((anim) => {
+      if (anim) anim.kill();
+    });
+    this.randomAnimations = [];
+  }
 
-    const components = this.itemCanvas.components.children;
-    const allPoints = [];
-    let center = { x: 0, y: 0 };
+  // 開始電極移動動畫
+  startElectrodesMovement() {
+    const beaker = this.findComponentByType("燒杯");
+    if (!beaker || !beaker.ions) return;
 
-    // 首先，收集所有離子位置並計算中心
-    components.forEach((component) => {
-      if (component.ions) {
-        component.ions.forEach((ion) => {
-          const pos = component.toGlobal({ x: ion.x, y: ion.y });
-          allPoints.push(pos);
-          center.x += pos.x;
-          center.y += pos.y;
+    // 清除現有的電極動畫
+    this.stopElectrodesMovement();
+
+    beaker.ions.forEach((ion) => {
+      // 決定目標範圍（基於離子類型）
+      const finalRange = ion.isPositive
+        ? {
+            x: { min: -90, max: -50 }, // 左側範圍
+            y: { min: -60, max: 160 }, // y軸範圍 (-60 到 160)
+          }
+        : {
+            x: { min: 90, max: 130 }, // 右側範圍
+            y: { min: -60, max: 160 }, // y軸範圍 (-60 到 160)
+          };
+
+      // 創建移動到目標區域的動畫序列
+      const sequence = gsap.timeline();
+
+      // 生成3-4個中途點
+      const steps = 3 + Math.floor(Math.random() * 2);
+
+      for (let i = 0; i < steps; i++) {
+        // 逐漸靠近目標區域
+        const progress = (i + 1) / steps;
+        const targetRange = {
+          x: {
+            min: ion.x + (finalRange.x.min - ion.x) * progress,
+            max: ion.x + (finalRange.x.max - ion.x) * progress,
+          },
+          y: finalRange.y, // y範圍保持不變
+        };
+
+        // 在當前範圍內取隨機點
+        const targetX = targetRange.x.min + Math.random() * (targetRange.x.max - targetRange.x.min);
+        const targetY = targetRange.y.min + Math.random() * (targetRange.y.max - targetRange.y.min);
+
+        sequence.to(ion, {
+          x: targetX,
+          y: targetY,
+          duration: 1 + Math.random(),
+          ease: "power1.inOut",
         });
       }
-    });
 
-    if (allPoints.length === 0) return;
+      // 到達目標區域後開始隨機移動
+      sequence.call(() => {
+        const createRandomMovement = () => {
+          const targetX = finalRange.x.min + Math.random() * (finalRange.x.max - finalRange.x.min);
+          const targetY = finalRange.y.min + Math.random() * (finalRange.y.max - finalRange.y.min);
 
-    center.x /= allPoints.length;
-    center.y /= allPoints.length;
-
-    // 按角度排序點以進行圓周運動
-    allPoints.sort((a, b) => {
-      const angleA = Math.atan2(a.y - center.y, a.x - center.x);
-      const angleB = Math.atan2(b.y - center.y, b.x - center.x);
-      return angleB - angleA;
-    });
-
-    // 創建新的動畫
-    components.forEach((component) => {
-      if (component.ions) {
-        component.ions.forEach((ion, ionIndex) => {
-          if (ion.tween) ion.tween.kill();
-
-          // 儲存原始的 progress 值
-          const initialOffset = ionIndex / component.ions.length;
-          ion.originalProgress = initialOffset; // 新增這行
-          ion.progress = initialOffset;
-
-          const tween = gsap.to(ion, {
-            duration: 10,
-            progress: 1 + initialOffset,
-            repeat: -1,
-            ease: "none",
-            onUpdate: () => {
-              if (!this.ionMoving) return;
-
-              // 計算實際進度（保持在 0-1 之間）
-              const currentProgress = ion.progress % 1;
-
-              // 計算當前點和下一個點的索引
-              const index = Math.floor(currentProgress * allPoints.length);
-              const nextIndex = (index + 1) % allPoints.length;
-              const currentPoint = allPoints[index];
-              const nextPoint = allPoints[nextIndex];
-
-              // 轉換為本地座標
-              const localCurrent = component.toLocal(currentPoint);
-              const localNext = component.toLocal(nextPoint);
-
-              // 在點之間線性插值
-              const t = (currentProgress * allPoints.length) % 1;
-              ion.x = localCurrent.x + (localNext.x - localCurrent.x) * t;
-              ion.y = localCurrent.y + (localNext.y - localCurrent.y) * t;
+          const anim = gsap.to(ion, {
+            x: targetX,
+            y: targetY,
+            duration: 1.5 + Math.random(),
+            ease: "power1.inOut",
+            onComplete: () => {
+              createRandomMovement();
             },
           });
-          ion.tween = tween;
-        });
-      }
+
+          this.electrodesAnimations.push(anim);
+        };
+
+        createRandomMovement();
+      });
+
+      this.electrodesAnimations.push(sequence);
     });
   }
 
-  // 停止離子動畫
-  stopIonAnimation() {
-    this.ionMoving = false;
-    const components = this.itemCanvas.components.children;
-
-    components.forEach((component) => {
-      if (component.ions) {
-        component.ions.forEach((ion) => {
-          if (ion.tween) {
-            ion.tween.kill();
-          }
-
-          // 重置離子位置
-          if (component.type === "Wire") {
-            // 儲存原始的 progress 值
-            const originalProgress = ion.originalProgress || 0;
-
-            // 使用組件的實際 joints 位置重新計算
-            const joint1 = component.joints[0];
-            const joint2 = component.joints[1];
-
-            // 確保 joints 存在且有正確的位置
-            if (joint1 && joint2) {
-              // 計算新的位置
-              ion.x = joint1.x + (joint2.x - joint1.x) * originalProgress;
-              ion.y = joint1.y + (joint2.y - joint1.y) * originalProgress;
-
-              // 重置當前 progress 為原始值
-              ion.progress = originalProgress;
-            }
-          } else {
-            // 非電線組件的離子重置
-            if (ion.originalX !== undefined && ion.originalY !== undefined) {
-              ion.x = ion.originalX;
-              ion.y = ion.originalY;
-            }
-          }
-
-          // 更新可見性
-          ion.visible = component.type === "燒杯" && this.ionVisible;
-        });
-      }
-
-      // 如果是電線組件，重新繪製並重新定位離子
-      if (component.type === "Wire") {
-        // 首先重新繪製電線
-        if (component.redrawWire) {
-          component.redrawWire();
-        }
-
-        // 然後重新定位所有離子
-        if (component.ions) {
-          component.ions.forEach((ion) => {
-            const originalProgress = ion.originalProgress || 0;
-            const joint1 = component.joints[0];
-            const joint2 = component.joints[1];
-
-            if (joint1 && joint2) {
-              ion.x = joint1.x + (joint2.x - joint1.x) * originalProgress;
-              ion.y = joint1.y + (joint2.y - joint1.y) * originalProgress;
-            }
-          });
-        }
-      }
+  // 停止電極移動動畫
+  stopElectrodesMovement() {
+    this.electrodesAnimations.forEach((anim) => {
+      if (anim) anim.kill();
     });
+    this.electrodesAnimations = [];
+  }
+
+  // 切換離子顯示
+  toggleIonAnimation(show) {
+    const beaker = this.findComponentByType("燒杯");
+    if (!beaker || !beaker.ions) return;
+
+    this.isIonCheckboxChecked = show; // 更新 checkbox 狀態
+
+    // 只有當選擇了溶液且 checkbox 被勾選時才顯示離子
+    const shouldShowIons = this.selectedSolution && this.isIonCheckboxChecked;
+
+    beaker.ions.forEach((ion) => {
+      ion.visible = shouldShowIons;
+    });
+
+    if (shouldShowIons) {
+      // 如果當前在電解狀態，則保持電極動畫
+      if (this.ionMoving) {
+        // 不做任何改變，保持現有的電極動畫
+      } else {
+        this.startRandomMovement();
+      }
+    } else if (!this.isIonCheckboxChecked) {
+      // 只隱藏離子，不停止動畫
+      beaker.ions.forEach((ion) => {
+        ion.visible = false;
+      });
+    }
   }
 
   // 重置
   reset() {
-    // 重置所有狀態
+    this.stopRandomMovement();
+    this.stopElectrodesMovement();
     this.validCircuit = false;
     this.ionAnimationActive = false;
     this.connectedPHPaper = null;
     this.isAssembled = false;
     this.isAllitem = false;
     this.resetBulbLight();
-    this.stopIonAnimation();
-    this.activeIonTweens.forEach((tween) => tween.kill());
-    this.activeIonTweens = [];
     this.ionVisible = false;
     this.ionMoving = false;
   }

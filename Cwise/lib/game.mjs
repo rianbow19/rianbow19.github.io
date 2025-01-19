@@ -282,16 +282,15 @@ class Game {
     });
     this.UIContainer.addChild(this.startElectrolysisBtn); //開始電解按鈕
 
-    // 顯示離子流向按鈕
     this.showIonFlow = createCheckboxBlock(
       "顯示離子流向",
       1650,
       160,
       () => {
-        console.log("顯示離子");
+        this.itemCanvas.togglePolarityMarkers(true);
       },
       () => {
-        console.log("隱藏離子");
+        this.itemCanvas.togglePolarityMarkers(false);
       }
     );
     this.UIContainer.addChild(this.showIonFlow);
@@ -302,7 +301,6 @@ class Game {
       1650,
       75,
       () => {
-        this.itemCanvas.createComponentIons();
         if (this.electrolysisModule.isAssembled) {
           this.electrolysisModule.toggleIonAnimation(true);
         }
