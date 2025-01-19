@@ -1,3 +1,4 @@
+import { ItemsList } from "./itemsList.mjs";
 import { Container, Sprite, Graphics, Text, Texture } from "./pixi.mjs";
 import { defaultStyle, defaultStyle2 } from "./textStyle.mjs";
 
@@ -105,12 +106,22 @@ export class ItemsCanvas {
     };
   }
 
+  setItemsList(itemsList) {
+    this.itemsList = itemsList;
+  }
+
   createSceneItem(imagePath, position) {
     const sceneContainer = new Container();
     sceneContainer.x = position.x;
     sceneContainer.y = position.y;
     sceneContainer.connectedComponent = -1;
     sceneContainer.type = imagePath.replace(".png", ""); // 新增此行以設置所有組件的類型
+
+    if (this.itemsList) {
+      requestAnimationFrame(() => {
+        this.itemsList.updateRestrictedItems();
+      });
+    }
 
     // 新增離子陣列到容器
     sceneContainer.ions = [];
@@ -210,6 +221,7 @@ export class ItemsCanvas {
     sceneContainer.getGlobalJointPositions = () => sceneContainer.joints.map((joint) => sceneContainer.toGlobal(joint.position));
 
     this.components.addChild(sceneContainer);
+
     return sceneContainer;
   }
 
@@ -473,6 +485,14 @@ export class ItemsCanvas {
     this.draggingJoint = null;
     this.dragStartPos = null;
     this.rotationCenter = null;
+
+    if (this.itemsList) {
+      // 使用 ItemsList 自己保存的初始索引進行重置
+      Object.keys(this.itemsList.restrictedItems).forEach((key) => {
+        this.itemsList.restrictedItems[key] = false;
+      });
+      this.itemsList.updateDisplayedImages(this.itemsList.initialIndices);
+    }
   }
 
   // 新增刪除處理的方法
@@ -533,5 +553,11 @@ export class ItemsCanvas {
       this.components.removeChild(component);
     });
     this.componentsToDelete.length = 0;
+
+    if (this.itemsList) {
+      requestAnimationFrame(() => {
+        this.itemsList.updateRestrictedItems();
+      });
+    }
   }
 }

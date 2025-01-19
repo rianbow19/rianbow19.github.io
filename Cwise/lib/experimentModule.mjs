@@ -387,8 +387,7 @@ class ElectrolysisModule {
       if (component.ions) {
         component.ions.forEach((ion) => {
           // 只有在動畫中時顯示燒杯離子
-          //ion.visible = show && (component.type === "燒杯" || this.ionMoving);
-          ion.visible = show;
+          ion.visible = show && (component.type === "燒杯" || this.ionMoving);
         });
       }
     });
@@ -424,7 +423,7 @@ class ElectrolysisModule {
     allPoints.sort((a, b) => {
       const angleA = Math.atan2(a.y - center.y, a.x - center.x);
       const angleB = Math.atan2(b.y - center.y, b.x - center.x);
-      return angleA - angleB;
+      return angleB - angleA;
     });
 
     // 創建新的動畫
@@ -510,8 +509,7 @@ class ElectrolysisModule {
           }
 
           // 更新可見性
-          //ion.visible = component.type === "燒杯" && this.ionVisible;
-          ion.visible = this.ionVisible;
+          ion.visible = component.type === "燒杯" && this.ionVisible;
         });
       }
 

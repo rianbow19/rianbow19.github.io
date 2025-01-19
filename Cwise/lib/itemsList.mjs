@@ -5,21 +5,70 @@ export class ItemsList {
   constructor(images, itemCanvas, itemsPerPage = 5, selectedIndices = null) {
     this.container = new Container();
     this.itemCanvas = itemCanvas;
-
     this.allImages = images;
+
+    this.initialIndices = selectedIndices ? [...selectedIndices] : null;
+
     this.images = selectedIndices ? selectedIndices.map((index) => images[index]) : images;
     this.itemsPerPage = itemsPerPage;
     this.currentPage = 0;
     this.items = [];
     this.draggedSprite = null;
     this.isDragging = false;
-    this.dragStartPosition = null; // 新增拖曳起始位置
+    this.dragStartPosition = null;
+
+    if (selectedIndices && selectedIndices.length > 0) {
+      // 只選擇指定索引的圖片
+      this.images = selectedIndices.map((index) => this.allImages[index]);
+    } else {
+      // 如果沒有提供索引，則使用所有圖片
+      this.images = [...this.allImages];
+    }
+
+    // 添加限制物件的追踪
+    this.restrictedItems = {
+      "燒杯.png": false,
+      "廣用試紙.png": false,
+    };
 
     this.init();
+    this.updateRestrictedItems(); // 初始檢查限制物件
   }
-  // 更新並顯示指定索引的圖片。
-  updateDisplayedImages(selectedIndices) {
-    this.images = selectedIndices.map((index) => this.allImages[index]);
+
+  // 檢查並更新限制物件的狀態
+  updateRestrictedItems() {
+    // 重置狀態
+    Object.keys(this.restrictedItems).forEach((key) => {
+      this.restrictedItems[key] = false;
+    });
+
+    // 檢查畫布上的每個物件
+    this.itemCanvas.components.children.forEach((component) => {
+      const type = component.type + ".png";
+      if (this.restrictedItems.hasOwnProperty(type)) {
+        this.restrictedItems[type] = true;
+      }
+    });
+
+    // 更新顯示的項目
+    this.updateDisplayedImages();
+  }
+
+  // 更新顯示的圖片
+  updateDisplayedImages(selectedIndices = null) {
+    if (selectedIndices && selectedIndices.length > 0) {
+      // 使用新的選定索引
+      this.images = selectedIndices.map((index) => this.allImages[index]);
+    } else {
+      // 如果沒有提供新的索引，保持當前的過濾狀態
+      this.images = this.images.filter((imagePath) => {
+        if (this.restrictedItems.hasOwnProperty(imagePath)) {
+          return !this.restrictedItems[imagePath];
+        }
+        return true;
+      });
+    }
+
     this.currentPage = 0;
     this.createItems();
   }
@@ -40,9 +89,16 @@ export class ItemsList {
 
   // 建立背景圖形。
   createBackground() {
+    // 確保移除舊的背景容器
+    if (this.backgroundContainer) {
+      this.container.removeChild(this.backgroundContainer);
+    }
+
+    // 創建新的背景容器
     this.backgroundContainer = new Container();
     this.container.addChild(this.backgroundContainer);
 
+    // 創建背景方格
     for (let i = 0; i < this.itemsPerPage; i++) {
       const background = new Graphics();
       background.roundRect(0, 0, 120, 120, 15);
@@ -179,14 +235,27 @@ export class ItemsList {
 
     if (this.draggedSprite && this.dragStartPosition) {
       const currentPos = event.getLocalPosition(this.container);
-
-      // 計算拖曳距離
       const dragDistance = Math.sqrt(Math.pow(currentPos.x - this.dragStartPosition.x, 2) + Math.pow(currentPos.y - this.dragStartPosition.y, 2));
 
-      // 只有當拖曳距離大於 50 時才創建物件
+      // 只有當拖曳距離大於閾值時才創建物件
       if (dragDistance > 200) {
-        const position = event.getLocalPosition(this.itemCanvas.container);
-        this.itemCanvas.createSceneItem(this.draggedSprite.imagePath, position);
+        const imagePath = this.draggedSprite.imagePath;
+
+        // 檢查是否是限制物件且已存在
+        if (this.restrictedItems.hasOwnProperty(imagePath) && this.restrictedItems[imagePath]) {
+          // 如果是已存在的限制物件，不創建新物件
+          console.log(`${imagePath} 已經存在於畫布上`);
+        } else {
+          // 創建新物件
+          const position = event.getLocalPosition(this.itemCanvas.container);
+          this.itemCanvas.createSceneItem(imagePath, position);
+
+          // 如果是限制物件，更新狀態並重新整理列表
+          if (this.restrictedItems.hasOwnProperty(imagePath)) {
+            this.restrictedItems[imagePath] = true;
+            this.updateDisplayedImages();
+          }
+        }
       }
 
       this.container.removeChild(this.draggedSprite);
@@ -233,6 +302,25 @@ export class ItemsList {
   // 重置項目列表。
   reset() {
     this.container.removeChildren();
+
+    // 重置所有狀態
+    Object.keys(this.restrictedItems).forEach((key) => {
+      this.restrictedItems[key] = false;
+    });
+
+    this.currentPage = 0;
+    this.items = [];
+    this.draggedSprite = null;
+    this.isDragging = false;
+    this.dragStartPosition = null;
+
+    // 使用保存的初始索引重新初始化
+    if (this.initialIndices) {
+      this.images = this.initialIndices.map((index) => this.allImages[index]);
+    } else {
+      this.images = [...this.allImages];
+    }
+
     this.init();
   }
 }
