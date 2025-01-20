@@ -69,8 +69,8 @@ export class ItemsCanvas {
       "燒杯.png": {
         positions: [],
         count: {
-          positive: 30,
-          negative: 30,
+          positive: 40,
+          negative: 40,
         },
       },
     };
@@ -171,6 +171,7 @@ export class ItemsCanvas {
       if (imagePath === "燒杯.png") {
         sceneContainer.zIndex = 1000;
         this.components.sortableChildren = true;
+        sceneContainer.isBeaker = true;
         // 為燒杯創建離子
         this.createBeakerIons(sceneContainer);
         sceneContainer.joints.forEach((joint) => {
@@ -218,18 +219,18 @@ export class ItemsCanvas {
   createIon(isPositive) {
     const ion = new Graphics();
     // 離子主體
-    ion.circle(0, 0, 10);
+    ion.circle(0, 0, 8);
     ion.fill(isPositive ? 0xff0000 : 0x0000ff);
 
     // 正負極標誌
 
     if (isPositive) {
       // 正號
-      ion.rect(-6, -1, 12, 3);
-      ion.rect(-1, -6, 3, 12);
+      ion.rect(-5, -1, 10, 2);
+      ion.rect(-1, -5, 2, 10);
     } else {
       // 負號
-      ion.rect(-6, -1, 12, 3);
+      ion.rect(-5, -1, 10, 2);
     }
     ion.fill(0xffffff);
     ion.isPositive = isPositive;

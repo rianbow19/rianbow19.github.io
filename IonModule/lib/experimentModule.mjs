@@ -1,4 +1,4 @@
-import { Sprite, Texture, Text, Graphics } from "./pixi.mjs";
+import { Sprite, Texture, Text, Graphics, Container } from "./pixi.mjs";
 import { defaultStyle } from "./textStyle.mjs";
 import { gsap } from "../gsap-public/src/index.js";
 
@@ -12,6 +12,8 @@ export class IonModule {
     this.currentSolution = null;
     this.lastBeakerX = 0;
     this.lastBeakerY = 0;
+    this.ionsVisible = false;
+    this.ionStorage = [];
 
     // 溶液特性配置
     this.solutionProperties = {
@@ -69,10 +71,10 @@ export class IonModule {
   }
 
   setSolution(solutionName) {
-    console.log("Setting solution to:", solutionName);
     if (this.solutionProperties[solutionName]) {
       this.currentSolution = solutionName;
     }
+    this.showStatusText("溶液已選擇：" + solutionName);
   }
 
   updateBeakerReference() {
@@ -110,7 +112,12 @@ export class IonModule {
   }
 
   createPowderParticles(bottle) {
-    const particleCount = 30;
+    if (!this.currentSolution) {
+      this.showStatusText("請選擇溶液");
+      return;
+    }
+
+    const particleCount = 5;
     const particleGroup = {
       particles: [],
       centerX: bottle.x + 120,
@@ -118,6 +125,7 @@ export class IonModule {
       vx: 0,
       vy: 0,
       scattered: false,
+      initialOffsets: [],
     };
 
     // 根據當前溶液設定粒子顏色
@@ -126,11 +134,24 @@ export class IonModule {
       particleColor = 0x0000ff;
     }
 
+    // 在一個較小的範圍內創建多個粒子
     for (let i = 0; i < particleCount; i++) {
-      const particle = new Graphics().circle(0, 0, 3).fill(particleColor);
+      const particle = new Graphics().circle(0, 0, 8).fill(particleColor);
+      // 使用極座標方式生成實心圓內的隨機位置
+      const radius = Math.sqrt(Math.random()) * 15; // sqrt 使分布更均勻
+      const angle = Math.random() * Math.PI * 2;
+
+      const offset = {
+        x: Math.cos(angle) * radius,
+        y: Math.sin(angle) * radius,
+      };
+
+      particleGroup.initialOffsets.push(offset);
+
       particle._isPrecipitate = true;
-      particle.x = particleGroup.centerX + Math.random() * 26 - 13;
-      particle.y = particleGroup.centerY + Math.random() * 26 - 13;
+      particle.x = particleGroup.centerX + offset.x;
+      particle.y = particleGroup.centerY + offset.y;
+      particle.alpha = 0.8;
 
       particleGroup.particles.push(particle);
       this.itemCanvas.container.addChild(particle);
@@ -141,6 +162,10 @@ export class IonModule {
 
   handleBottleAnimation(sceneContainer) {
     if (!sceneContainer || this.animatingBottles.has(sceneContainer)) {
+      return;
+    }
+    if (!this.currentSolution) {
+      this.showStatusText("請選擇溶液");
       return;
     }
 
@@ -169,11 +194,16 @@ export class IonModule {
         ease: "power2.inOut",
       });
   }
-
+  setIonsVisible(visible) {
+    this.ionsVisible = visible;
+    for (const ion of this.ions) {
+      if (!ion._isPrecipitate) {
+        ion.visible = visible;
+      }
+    }
+  }
   createIonsFromParticle(position, solutionName) {
-    console.log("Creating ions for solution:", solutionName);
     if (!solutionName || !this.solutionProperties[solutionName]) {
-      console.log("Invalid solution name:", solutionName);
       return;
     }
 
@@ -188,7 +218,7 @@ export class IonModule {
     // 如果是硫酸鈣，產生白色沉澱
     if (!solution.canDissolve) {
       for (let i = 0; i < 10; i++) {
-        const precipitate = new Graphics().circle(0, 0, 3).fill(0xffffff);
+        const precipitate = new Graphics().circle(0, 0, 8).fill(0xffffff);
         precipitate._isPrecipitate = true;
         precipitate._originalX = 0; // 儲存相對位置
         precipitate._originalY = 0;
@@ -205,14 +235,20 @@ export class IonModule {
         this.ions.add(precipitate);
 
         const createPrecipitateMotion = () => {
-          // 使用相對位置計算目標位置
-          const relativeTargetX = Math.random();
-          const relativeTargetY = 0.9 + Math.random() * 0.1; // 靠近底部
+          // 限制水平散布範圍
+          // 使用原始位置為中心，只允許較小範圍的偏移
+          const spreadRange = 0.15; // 相對於容器寬度的 10% 範圍
+          const relativeTargetX = relativeX + (Math.random() - 0.5) * spreadRange;
 
-          const targetX = bounds.x + bounds.width * relativeTargetX;
+          // 確保 X 不會超出容器邊界
+          const clampedTargetX = Math.max(0.1, Math.min(0.9, relativeTargetX));
+
+          const relativeTargetY = 0.8 + Math.random() * 0.1; // 靠近底部
+
+          const targetX = bounds.x + bounds.width * clampedTargetX;
           const targetY = bounds.y + bounds.height * relativeTargetY;
 
-          precipitate._originalX = relativeTargetX;
+          precipitate._originalX = clampedTargetX;
           precipitate._originalY = relativeTargetY;
 
           return gsap.to(precipitate, {
@@ -221,10 +257,10 @@ export class IonModule {
             duration: 3 + Math.random() * 2,
             ease: "power1.in",
             onComplete: () => {
-              // 小幅度擺動使用相對位置
-              const swayAmount = 0.02; // 相對寬度的 2%
+              // 減少擺動幅度
+              const swayAmount = 0.01; // 降低為相對寬度的 1%
               gsap.to(precipitate, {
-                x: bounds.x + bounds.width * (relativeTargetX + (Math.random() - 0.5) * swayAmount),
+                x: bounds.x + bounds.width * (clampedTargetX + (Math.random() - 0.5) * swayAmount),
                 duration: 1 + Math.random(),
                 repeat: -1,
                 yoyo: true,
@@ -242,12 +278,12 @@ export class IonModule {
     const numIonPairs = 5;
     for (let i = 0; i < numIonPairs; i++) {
       const createIon = (isPositive) => {
-        const ion = new Graphics().circle(0, 0, 6).fill(isPositive ? solution.ionColor.positive : solution.ionColor.negative);
+        const ion = new Graphics().circle(0, 0, 8).fill(isPositive ? solution.ionColor.positive : solution.ionColor.negative);
 
         if (isPositive) {
-          ion.rect(-4, -0.5, 8, 1).rect(-0.5, -4, 1, 8).fill(0xffffff);
+          ion.rect(-5, -1, 10, 2).rect(-1, -5, 2, 10).fill(0xff0000);
         } else {
-          ion.rect(-4, -0.5, 8, 1).fill(0xffffff);
+          ion.rect(-5, -1, 10, 2).fill(0x000000);
         }
 
         ion._isIon = true;
@@ -256,6 +292,7 @@ export class IonModule {
         ion.x = position.x;
         ion.y = position.y;
         ion.alpha = 0.8;
+        ion.visible = this.ionsVisible; // Add this line
 
         this.itemCanvas.container.addChild(ion);
         this.ions.add(ion);
@@ -308,10 +345,34 @@ export class IonModule {
       particle.y >= beakerBounds.y &&
       particle.y <= beakerBounds.y + beakerBounds.height;
 
-    if (collision) {
-      console.log("Collision detected with beaker");
-    }
     return collision;
+  }
+
+  // 顯示狀態文字
+  showStatusText(message) {
+    // 移除現有文字（如果有的話）
+    if (this.statusText) {
+      this.itemCanvas.container.removeChild(this.statusText);
+    }
+
+    // 創建新文字
+    this.statusText = new Text({ text: message, style: defaultStyle });
+
+    // 將文字定位在螢幕中央
+    this.statusText.anchor.set(0.5);
+    this.statusText.x = 960; // 1920 的一半
+    this.statusText.y = 100; // 1080 的一半
+
+    // 加入容器中
+    this.itemCanvas.container.addChild(this.statusText);
+
+    // 一秒後移除
+    setTimeout(() => {
+      if (this.statusText) {
+        this.itemCanvas.container.removeChild(this.statusText);
+        this.statusText = null;
+      }
+    }, 1000);
   }
 
   update() {
@@ -361,11 +422,12 @@ export class IonModule {
       if (!group.scattered) {
         group.vy += 0.2;
         group.centerY += group.vy;
-        group.centerX += group.vx;
 
+        // 更新每個粒子的位置
         group.particles.forEach((particle, i) => {
-          particle.x = group.centerX + Math.cos((i * Math.PI * 2) / group.particles.length) * 5;
-          particle.y = group.centerY + Math.sin((i * Math.PI * 2) / group.particles.length) * 5;
+          const offset = group.initialOffsets[i];
+          particle.x = group.centerX + offset.x;
+          particle.y = group.centerY + offset.y;
         });
 
         // 檢查是否有燒杯且粒子在燒杯範圍內

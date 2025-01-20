@@ -685,6 +685,7 @@ export class ModuleSetup {
       switch (name) {
         case "beaker":
           component.zIndex = 1000;
+          component.isBeaker = true;
           break;
       }
 

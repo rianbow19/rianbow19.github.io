@@ -86,11 +86,32 @@ class Game {
 
     //放大縮小邏輯
     scaleUp.on("pointerup", () => {
-      if (!this.isZoomedIn) {
-        this.sceneContainer.scale.set(this.sceneContainer.scale.x + 0.18);
+      // 找到場景中的燒杯
+      const beaker = this.itemCanvas.components.children.find((child) => child.isBeaker);
+
+      if (beaker) {
+        const oldScale = this.sceneContainer.scale.x;
+        const newScale = !this.isZoomedIn ? oldScale + 0.7 : oldScale - 0.7;
+
+        // 計算燒杯在世界座標中的位置
+        const beakerWorldPos = {
+          x: beaker.x * oldScale + this.sceneContainer.x,
+          y: beaker.y * oldScale + this.sceneContainer.y,
+        };
+
+        // 更新容器縮放
+        this.sceneContainer.scale.set(newScale);
+
+        // 計算新的容器位置以保持燒杯在同一位置
+        const newX = beakerWorldPos.x - beaker.x * newScale;
+        const newY = beakerWorldPos.y - beaker.y * newScale;
+
+        this.sceneContainer.position.set(newX, newY);
       } else {
-        this.sceneContainer.scale.set(this.sceneContainer.scale.x - 0.18);
+        // 如果沒有燒杯，使用普通縮放
+        this.sceneContainer.scale.set(!this.isZoomedIn ? this.sceneContainer.scale.x + 0.18 : this.sceneContainer.scale.x - 0.18);
       }
+
       updateZoomText();
       this.isZoomedIn = !this.isZoomedIn;
     });
@@ -146,12 +167,6 @@ class Game {
     topicBg.roundRect(-200, -40, 400, 80, 20);
     topicBg.fill(0xfcfcfc);
     topicBg.stroke({ color: 0x3c3c3c, width: 2 });
-
-    this.titlebg.eventMode = "static";
-    this.titlebg.cursor = "pointer";
-    this.titlebg.on("pointerup", () => {
-      this.startTitle();
-    });
 
     this.topicCon = new Container();
     this.topicCon.x = 400;
