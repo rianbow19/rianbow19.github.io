@@ -5,16 +5,15 @@ export class ItemsList {
   constructor(images, itemCanvas, itemsPerPage = 5, selectedIndices = null) {
     this.container = new Container();
     this.itemCanvas = itemCanvas;
+
     this.allImages = images;
-
-    this.initialIndices = selectedIndices ? [...selectedIndices] : null;
-
     this.images = selectedIndices ? selectedIndices.map((index) => images[index]) : images;
     this.itemsPerPage = itemsPerPage;
     this.currentPage = 0;
     this.items = [];
     this.draggedSprite = null;
     this.isDragging = false;
+<<<<<<< HEAD:Module2/lib/itemsList.mjs
     this.dragStartPosition = null;
 
     if (selectedIndices && selectedIndices.length > 0) {
@@ -31,45 +30,15 @@ export class ItemsList {
       "廣用試紙.png": false,
       "藥品罐.png": false,
     };
+=======
+    this.dragStartPosition = null; // 新增拖曳起始位置
+>>>>>>> parent of 6113a6a (動畫修正):Cwise/lib/itemsList.mjs
 
     this.init();
-    this.updateRestrictedItems(); // 初始檢查限制物件
   }
-
-  // 檢查並更新限制物件的狀態
-  updateRestrictedItems() {
-    // 重置狀態
-    Object.keys(this.restrictedItems).forEach((key) => {
-      this.restrictedItems[key] = false;
-    });
-
-    // 檢查畫布上的每個物件
-    this.itemCanvas.components.children.forEach((component) => {
-      const type = component.type + ".png";
-      if (this.restrictedItems.hasOwnProperty(type)) {
-        this.restrictedItems[type] = true;
-      }
-    });
-
-    // 更新顯示的項目
-    this.updateDisplayedImages();
-  }
-
-  // 更新顯示的圖片
-  updateDisplayedImages(selectedIndices = null) {
-    if (selectedIndices && selectedIndices.length > 0) {
-      // 使用新的選定索引
-      this.images = selectedIndices.map((index) => this.allImages[index]);
-    } else {
-      // 如果沒有提供新的索引，保持當前的過濾狀態
-      this.images = this.images.filter((imagePath) => {
-        if (this.restrictedItems.hasOwnProperty(imagePath)) {
-          return !this.restrictedItems[imagePath];
-        }
-        return true;
-      });
-    }
-
+  // 更新並顯示指定索引的圖片。
+  updateDisplayedImages(selectedIndices) {
+    this.images = selectedIndices.map((index) => this.allImages[index]);
     this.currentPage = 0;
     this.createItems();
   }
@@ -90,16 +59,9 @@ export class ItemsList {
 
   // 建立背景圖形。
   createBackground() {
-    // 確保移除舊的背景容器
-    if (this.backgroundContainer) {
-      this.container.removeChild(this.backgroundContainer);
-    }
-
-    // 創建新的背景容器
     this.backgroundContainer = new Container();
     this.container.addChild(this.backgroundContainer);
 
-    // 創建背景方格
     for (let i = 0; i < this.itemsPerPage; i++) {
       const background = new Graphics();
       background.roundRect(0, 0, 120, 120, 15);
@@ -236,10 +198,13 @@ export class ItemsList {
 
     if (this.draggedSprite && this.dragStartPosition) {
       const currentPos = event.getLocalPosition(this.container);
+
+      // 計算拖曳距離
       const dragDistance = Math.sqrt(Math.pow(currentPos.x - this.dragStartPosition.x, 2) + Math.pow(currentPos.y - this.dragStartPosition.y, 2));
 
-      // 只有當拖曳距離大於閾值時才創建物件
+      // 只有當拖曳距離大於 50 時才創建物件
       if (dragDistance > 200) {
+<<<<<<< HEAD:Module2/lib/itemsList.mjs
         const imagePath = this.draggedSprite.imagePath;
 
         // 檢查是否是限制物件且已存在
@@ -260,6 +225,10 @@ export class ItemsList {
             this.updateDisplayedImages();
           }
         }
+=======
+        const position = event.getLocalPosition(this.itemCanvas.container);
+        this.itemCanvas.createSceneItem(this.draggedSprite.imagePath, position);
+>>>>>>> parent of 6113a6a (動畫修正):Cwise/lib/itemsList.mjs
       }
 
       this.container.removeChild(this.draggedSprite);
@@ -306,25 +275,6 @@ export class ItemsList {
   // 重置項目列表。
   reset() {
     this.container.removeChildren();
-
-    // 重置所有狀態
-    Object.keys(this.restrictedItems).forEach((key) => {
-      this.restrictedItems[key] = false;
-    });
-
-    this.currentPage = 0;
-    this.items = [];
-    this.draggedSprite = null;
-    this.isDragging = false;
-    this.dragStartPosition = null;
-
-    // 使用保存的初始索引重新初始化
-    if (this.initialIndices) {
-      this.images = this.initialIndices.map((index) => this.allImages[index]);
-    } else {
-      this.images = [...this.allImages];
-    }
-
     this.init();
   }
 }

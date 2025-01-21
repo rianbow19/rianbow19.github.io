@@ -417,6 +417,7 @@ export class ElectrolysisModule {
     const beaker = this.findComponentByType("燒杯");
     if (!beaker || !beaker.ions) return;
 
+<<<<<<< HEAD:Electrolysis/lib/experimentModule.mjs
     // 清除現有的隨機動畫
     this.stopRandomMovement();
 
@@ -444,6 +445,14 @@ export class ElectrolysisModule {
               this.randomAnimations[index] = newAnim;
             }
           },
+=======
+    components.forEach((component) => {
+      if (component.ions) {
+        component.ions.forEach((ion) => {
+          // 只有在動畫中時顯示燒杯離子
+          //ion.visible = show && (component.type === "燒杯" || this.ionMoving);
+          ion.visible = show;
+>>>>>>> parent of 6113a6a (動畫修正):Cwise/lib/experimentModule.mjs
         });
       };
 
@@ -515,6 +524,7 @@ export class ElectrolysisModule {
           const targetX = finalRange.x.min + Math.random() * (finalRange.x.max - finalRange.x.min);
           const targetY = finalRange.y.min + Math.random() * (finalRange.y.max - finalRange.y.min);
 
+<<<<<<< HEAD:Electrolysis/lib/experimentModule.mjs
           const anim = gsap.to(ion, {
             x: targetX,
             y: targetY,
@@ -522,6 +532,54 @@ export class ElectrolysisModule {
             ease: "power1.inOut",
             onComplete: () => {
               createRandomMovement();
+=======
+    center.x /= allPoints.length;
+    center.y /= allPoints.length;
+
+    // 按角度排序點以進行圓周運動
+    allPoints.sort((a, b) => {
+      const angleA = Math.atan2(a.y - center.y, a.x - center.x);
+      const angleB = Math.atan2(b.y - center.y, b.x - center.x);
+      return angleA - angleB;
+    });
+
+    // 創建新的動畫
+    components.forEach((component) => {
+      if (component.ions) {
+        component.ions.forEach((ion, ionIndex) => {
+          if (ion.tween) ion.tween.kill();
+
+          // 儲存原始的 progress 值
+          const initialOffset = ionIndex / component.ions.length;
+          ion.originalProgress = initialOffset; // 新增這行
+          ion.progress = initialOffset;
+
+          const tween = gsap.to(ion, {
+            duration: 10,
+            progress: 1 + initialOffset,
+            repeat: -1,
+            ease: "none",
+            onUpdate: () => {
+              if (!this.ionMoving) return;
+
+              // 計算實際進度（保持在 0-1 之間）
+              const currentProgress = ion.progress % 1;
+
+              // 計算當前點和下一個點的索引
+              const index = Math.floor(currentProgress * allPoints.length);
+              const nextIndex = (index + 1) % allPoints.length;
+              const currentPoint = allPoints[index];
+              const nextPoint = allPoints[nextIndex];
+
+              // 轉換為本地座標
+              const localCurrent = component.toLocal(currentPoint);
+              const localNext = component.toLocal(nextPoint);
+
+              // 在點之間線性插值
+              const t = (currentProgress * allPoints.length) % 1;
+              ion.x = localCurrent.x + (localNext.x - localCurrent.x) * t;
+              ion.y = localCurrent.y + (localNext.y - localCurrent.y) * t;
+>>>>>>> parent of 6113a6a (動畫修正):Cwise/lib/experimentModule.mjs
             },
           });
 
@@ -535,10 +593,78 @@ export class ElectrolysisModule {
     });
   }
 
+<<<<<<< HEAD:Electrolysis/lib/experimentModule.mjs
   // 停止電極移動動畫
   stopElectrodesMovement() {
     this.electrodesAnimations.forEach((anim) => {
       if (anim) anim.kill();
+=======
+  // 停止離子動畫
+  stopIonAnimation() {
+    this.ionMoving = false;
+    const components = this.itemCanvas.components.children;
+
+    components.forEach((component) => {
+      if (component.ions) {
+        component.ions.forEach((ion) => {
+          if (ion.tween) {
+            ion.tween.kill();
+          }
+
+          // 重置離子位置
+          if (component.type === "Wire") {
+            // 儲存原始的 progress 值
+            const originalProgress = ion.originalProgress || 0;
+
+            // 使用組件的實際 joints 位置重新計算
+            const joint1 = component.joints[0];
+            const joint2 = component.joints[1];
+
+            // 確保 joints 存在且有正確的位置
+            if (joint1 && joint2) {
+              // 計算新的位置
+              ion.x = joint1.x + (joint2.x - joint1.x) * originalProgress;
+              ion.y = joint1.y + (joint2.y - joint1.y) * originalProgress;
+
+              // 重置當前 progress 為原始值
+              ion.progress = originalProgress;
+            }
+          } else {
+            // 非電線組件的離子重置
+            if (ion.originalX !== undefined && ion.originalY !== undefined) {
+              ion.x = ion.originalX;
+              ion.y = ion.originalY;
+            }
+          }
+
+          // 更新可見性
+          //ion.visible = component.type === "燒杯" && this.ionVisible;
+          ion.visible = this.ionVisible;
+        });
+      }
+
+      // 如果是電線組件，重新繪製並重新定位離子
+      if (component.type === "Wire") {
+        // 首先重新繪製電線
+        if (component.redrawWire) {
+          component.redrawWire();
+        }
+
+        // 然後重新定位所有離子
+        if (component.ions) {
+          component.ions.forEach((ion) => {
+            const originalProgress = ion.originalProgress || 0;
+            const joint1 = component.joints[0];
+            const joint2 = component.joints[1];
+
+            if (joint1 && joint2) {
+              ion.x = joint1.x + (joint2.x - joint1.x) * originalProgress;
+              ion.y = joint1.y + (joint2.y - joint1.y) * originalProgress;
+            }
+          });
+        }
+      }
+>>>>>>> parent of 6113a6a (動畫修正):Cwise/lib/experimentModule.mjs
     });
     this.electrodesAnimations = [];
   }

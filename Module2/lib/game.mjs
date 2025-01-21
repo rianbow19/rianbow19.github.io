@@ -24,8 +24,10 @@ class Game {
       "U型管.png",
       "檢流計.png",
       "鋅銅電池雙燒杯.png",
+
       "迴紋針.png",
       "棉花.png",
+
       "藥品罐.png",
     ];
     this.isZoomedIn = false;
@@ -283,18 +285,26 @@ class Game {
   modlePage1() {
     this.sceneContainer.removeChildren();
     this.UIContainer.removeChildren();
+<<<<<<< HEAD:Module2/lib/game.mjs
 
+=======
+    this.itemCanvas.reset();
+>>>>>>> parent of 6113a6a (動畫修正):Cwise/lib/game.mjs
     this.UIContainer.addChild(this.reloadbtn); //重新整理按鈕
     this.UIContainer.addChild(this.scaleUpCon); //放大縮小按鈕
     this.UIContainer.addChild(this.setbtnCon); //電路模組按鈕
+
     this.sceneContainer.addChild(this.itemCanvas.container); //場景畫布
 
     this.inPage1 = true;
 
-    const draggableList = new ItemsList(this.imageList, this.itemCanvas, 5, [0, 4]);
-    // 設置 ItemsList 到 ItemCanvas
-    this.itemCanvas.setItemsList(draggableList);
-
+    //清單項目
+    const draggableList = new ItemsList(
+      this.imageList,
+      this.itemCanvas,
+      5, //項目數
+      [0, 4] // 選定的索引
+    );
     this.UIContainer.addChild(draggableList.container);
 
     // 開始電解按鈕
