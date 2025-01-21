@@ -35,7 +35,7 @@ class Game {
     // 創建電解實驗模組
     this.electrolysisModule = new ElectrolysisModule(this.itemCanvas);
     this.ionModule = new IonModule(this.itemCanvas);
-    this.itemCanvas.setIomModule(this.ionModule);
+    this.itemCanvas.setIonModule(this.ionModule);
 
     this.init();
   }
@@ -57,6 +57,7 @@ class Game {
     this.reloadbtn.on("pointerup", () => {
       this.itemCanvas.reset();
       this.electrolysisModule.reset();
+      this.ionModule.reset();
     });
     this.reloadbtn.on("pointerover", () => {
       this.reloadbtn.scale.set(0.163);
@@ -88,11 +89,32 @@ class Game {
 
     //放大縮小邏輯
     scaleUp.on("pointerup", () => {
-      if (!this.isZoomedIn) {
-        this.sceneContainer.scale.set(this.sceneContainer.scale.x + 0.18);
+      // 找到場景中的燒杯
+      const beaker = this.itemCanvas.components.children.find((child) => child.isBeaker);
+
+      if (beaker) {
+        const oldScale = this.sceneContainer.scale.x;
+        const newScale = !this.isZoomedIn ? oldScale + 0.7 : oldScale - 0.7;
+
+        // 計算燒杯在世界座標中的位置
+        const beakerWorldPos = {
+          x: beaker.x * oldScale + this.sceneContainer.x,
+          y: beaker.y * oldScale + this.sceneContainer.y,
+        };
+
+        // 更新容器縮放
+        this.sceneContainer.scale.set(newScale);
+
+        // 計算新的容器位置以保持燒杯在同一位置
+        const newX = beakerWorldPos.x - beaker.x * newScale;
+        const newY = beakerWorldPos.y - beaker.y * newScale;
+
+        this.sceneContainer.position.set(newX, newY);
       } else {
-        this.sceneContainer.scale.set(this.sceneContainer.scale.x - 0.18);
+        // 如果沒有燒杯，使用普通縮放
+        this.sceneContainer.scale.set(!this.isZoomedIn ? this.sceneContainer.scale.x + 0.18 : this.sceneContainer.scale.x - 0.18);
       }
+
       updateZoomText();
       this.isZoomedIn = !this.isZoomedIn;
     });
@@ -167,6 +189,9 @@ class Game {
   async startTitle() {
     this.sceneContainer.removeChildren();
     this.UIContainer.removeChildren();
+    this.itemCanvas.reset();
+    this.electrolysisModule.reset();
+    this.ionModule.reset();
     this.inPage1 = false;
 
     const bg = new Sprite(Texture.from("底圖.png"));
@@ -258,7 +283,6 @@ class Game {
   modlePage1() {
     this.sceneContainer.removeChildren();
     this.UIContainer.removeChildren();
-    this.itemCanvas.reset();
 
     this.UIContainer.addChild(this.reloadbtn); //重新整理按鈕
     this.UIContainer.addChild(this.scaleUpCon); //放大縮小按鈕
@@ -354,7 +378,7 @@ class Game {
   modlePage2() {
     this.sceneContainer.removeChildren();
     this.UIContainer.removeChildren();
-    this.itemCanvas.reset();
+
     this.UIContainer.addChild(this.reloadbtn); //重新整理按鈕
     this.UIContainer.addChild(this.scaleUpCon); //放大縮小按鈕
     this.UIContainer.addChild(this.setbtnCon); //電路模組按鈕
@@ -475,10 +499,9 @@ class Game {
   modlePage3() {
     this.sceneContainer.removeChildren();
     this.UIContainer.removeChildren();
-    this.itemCanvas.reset();
+
     this.UIContainer.addChild(this.reloadbtn); //重新整理按鈕
     this.UIContainer.addChild(this.scaleUpCon); //放大縮小按鈕
-    this.UIContainer.addChild(this.setbtnCon); //電路模組按鈕
     this.sceneContainer.addChild(this.itemCanvas.container); //場景畫布
 
     //清單項目
@@ -487,35 +510,16 @@ class Game {
     this.itemCanvas.setItemsList(draggableList);
     this.UIContainer.addChild(draggableList.container);
 
-    //組合模組
-    this.setbtnCon.on("pointerup", () => {
-      console.log("組合模組");
-    });
-
-    // 顯示離子流向按鈕
-    this.showIonFlow = createCheckboxBlock(
-      "顯示離子流向",
-      1650,
-      75,
-      () => {
-        console.log("顯示離子");
-      },
-      () => {
-        console.log("隱藏離子");
-      }
-    );
-    this.UIContainer.addChild(this.showIonFlow);
-
     // 離子顯示checkbox
     this.ionCon = createCheckboxBlock(
       "顯示離子",
       1650,
-      75,
+      160,
       () => {
-        console.log("顯示離子");
+        this.ionModule.setIonsVisible(true);
       },
       () => {
-        console.log("隱藏離子");
+        this.ionModule.setIonsVisible(false);
       }
     );
     this.UIContainer.addChild(this.ionCon);
@@ -536,7 +540,9 @@ class Game {
       prefix: "藥品",
       hoverColor: 0xf0f0f0,
     });
-    drugs.onSelect = (item) => console.log("Selected drug:", item);
+    drugs.onSelect = (item) => {
+      this.ionModule.setSolution(item);
+    };
     this.UIContainer.addChild(drugs.container);
   }
 
@@ -552,6 +558,8 @@ class Game {
         }
       }
     }
+
+    this.ionModule.update(currentTime);
   }
 }
 
