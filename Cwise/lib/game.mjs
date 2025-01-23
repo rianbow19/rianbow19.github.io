@@ -1,9 +1,9 @@
 import { ItemsList } from "./itemsList.mjs";
 import { DropdownMenu } from "./dropdownMenu.mjs";
 import { Container, Graphics, Sprite, Texture, Text } from "./pixi.mjs";
-import { defaultStyle, defaultStyle2, listStyle } from "./textStyle.mjs";
+import { defaultStyle, defaultStyle2, gdStyle, listStyle } from "./textStyle.mjs";
 import { ItemsCanvas } from "./itemsCanvas.mjs";
-import { ElectrolysisModule, IonModule, SetElectron, showStatusText } from "./experimentModule.mjs";
+import { ElectrolysisModule, IonModule, ModuleSetup } from "./experimentModule.mjs";
 
 export { Game };
 class Game {
@@ -35,9 +35,7 @@ class Game {
     // 創建電解實驗模組
     this.electrolysisModule = new ElectrolysisModule(this.itemCanvas);
     this.ionModule = new IonModule(this.itemCanvas);
-    this.setElectron = new SetElectron(this.itemCanvas);
     this.itemCanvas.setIonModule(this.ionModule);
-    this.itemCanvas.setElectron(this.setElectron);
 
     this.init();
   }
@@ -177,18 +175,6 @@ class Game {
     this.titlebg.eventMode = "static";
     this.titlebg.cursor = "pointer";
     this.titlebg.on("pointerup", () => {
-      this.inPage1 = false;
-      this.electrolysisModule.selectedSolution = null;
-      this.electrolysisModule.isIonCheckboxChecked = false;
-      this.electrolysisModule.isElectronCheckboxChecked = false;
-      this.electrolysisModule.reset();
-      this.itemCanvas.reset();
-      // Reset scale and position
-      this.sceneContainer.scale.set(1);
-      this.sceneContainer.position.set(0, 0);
-      this.isZoomedIn = false;
-      scaleUpText.text = "+";
-
       this.startTitle();
     });
 
@@ -314,7 +300,7 @@ class Game {
     // 開始電解按鈕
     this.startElectrolysisBtn = createButton({
       text: "開始電解",
-      x: 1650,
+      x: 1550,
       y: 245,
       onClick: () => {
         this.electrolysisModule.startElectrolysis();
@@ -323,14 +309,14 @@ class Game {
     this.UIContainer.addChild(this.startElectrolysisBtn); //開始電解按鈕
 
     this.showIonFlow = createCheckboxBlock(
-      "顯示電子流向",
+      "顯示離子流向",
       1650,
       160,
       () => {
-        this.electrolysisModule.toggleElectronVisibility(true);
+        this.itemCanvas.togglePolarityMarkers(true);
       },
       () => {
-        this.electrolysisModule.toggleElectronVisibility(false);
+        this.itemCanvas.togglePolarityMarkers(false);
       }
     );
     this.UIContainer.addChild(this.showIonFlow);
@@ -341,7 +327,9 @@ class Game {
       1650,
       75,
       () => {
-        this.electrolysisModule.toggleIonAnimation(true);
+        if (this.electrolysisModule.isAssembled) {
+          this.electrolysisModule.toggleIonAnimation(true);
+        }
       },
       () => {
         this.electrolysisModule.toggleIonAnimation(false);
@@ -350,11 +338,9 @@ class Game {
     this.UIContainer.addChild(this.ionCon);
 
     this.setbtnCon.on("pointerup", () => {
-      showStatusText("組裝中...", this.itemCanvas);
+      this.electrolysisModule.showStatusText("組裝中...");
       // 直接設置組件
-
-      this.electrolysisModule.reset();
-      this.electrolysisModule.moduleSetup.setupElectrolysisModule();
+      const components = this.electrolysisModule.moduleSetup.setupElectrolysisModule();
 
       // 更新狀態
       this.electrolysisModule.isAssembled = true;
@@ -572,6 +558,7 @@ class Game {
         }
       }
     }
+
     this.ionModule.update(currentTime);
   }
 }
@@ -664,8 +651,8 @@ function createButton({ text, x, y, onClick }) {
   buttonText.anchor.set(0.5);
 
   const buttonBg = new Graphics();
-  buttonBg.roundRect(-200, -40, 400, 80, 10);
-  buttonBg.fill(0xffffe0);
+  buttonBg.roundRect(-100, -40, 200, 80, 10);
+  buttonBg.fill(0xfcfcfc);
   buttonBg.stroke({ color: 0x3c3c3c, width: 2 });
 
   const buttonContainer = new Container();

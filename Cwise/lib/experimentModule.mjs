@@ -1,4 +1,4 @@
-import { Sprite, Texture, Text, Graphics, Container } from "./pixi.mjs";
+import { Sprite, Texture, Text, Graphics } from "./pixi.mjs";
 import { defaultStyle } from "./textStyle.mjs";
 import { gsap } from "../gsap-public/src/index.js";
 
@@ -10,15 +10,13 @@ export class ElectrolysisModule {
     this.connectedPHPaper = null;
     this.isIonCheckboxChecked = false;
 
-    this.isElectrolysisActive = false; // 追蹤實驗是否在進行中
-    this.isElectronCheckboxChecked = false; // 追蹤使用者是否想看到電子流向
-
     // 新增模組設置實例
     this.moduleSetup = new ModuleSetup(itemCanvas);
-    this.setElectron = new SetElectron(itemCanvas);
 
     // 追蹤組件狀態
     this.components = null;
+    this.isAssembled = false;
+    this.isAllitem = false;
 
     //pH試紙檢查
     this.lastPHCheckTime = 0;
@@ -27,7 +25,12 @@ export class ElectrolysisModule {
     this.lastBeakerPosition = null;
 
     this.bulbLight = null;
+    this.statusText = null;
     this.ionMoving = false;
+    this.ionFlowMoving = false;
+    this.ions = [];
+    this.animationFrame = null;
+    this.activeIonTweens = []; // 用於追蹤 GSAP 動畫
     this.randomAnimations = []; // 用於儲存隨機移動的動畫
     this.electrodesAnimations = []; // 用於儲存電極移動的動畫
 
@@ -109,46 +112,58 @@ export class ElectrolysisModule {
 
   // 開始電解實驗
   startElectrolysis() {
-    this.setElectron.reset();
-
     if (!this.selectedSolution) {
-      showStatusText("請選擇溶液", this.itemCanvas);
+      this.showStatusText("請選擇溶液");
       return false;
     }
     if (!this.moduleSetup.isSetDown) {
-      showStatusText("請先放置實驗設備", this.itemCanvas);
+      this.showStatusText("請先放置實驗設備");
       return false;
     }
 
     const solutionProps = this.solutionProperties[this.selectedSolution];
 
-    // 首先，從畫布中獲取所有組件
-    const allComponents = this.itemCanvas.components.children;
-
-    // 然後處理每個組件
-    allComponents.forEach((component) => {
-      this.setElectron.createElectronsForComponent(component);
-      component.eventMode = "none"; // 禁用事件交互
-      component.cursor = "default"; // 改變游標樣式
-    });
-
-    // 設定實驗狀態為進行中
-    this.isElectrolysisActive = true;
-
     // 停止隨機移動，開始電極移動
     this.stopRandomMovement();
     this.startElectrodesMovement();
 
-    // 根據使用者選擇決定是否顯示電子動畫
-    this.updateElectronAnimation();
+    // 顯示 "電解中" 文字
+    this.showStatusText("電解中");
 
-    // 顯示實驗狀態
-    showStatusText("電解中", this.itemCanvas);
+    // 更新實驗狀態
     this.updateBulbBrightness(solutionProps.brightness);
     this.updateBeakerColor(solutionProps.color);
 
+    this.ionFlowMoving = true;
     this.ionMoving = true;
     return true;
+  }
+
+  // 顯示狀態文字
+  showStatusText(message) {
+    // 移除現有文字（如果有的話）
+    if (this.statusText) {
+      this.itemCanvas.container.removeChild(this.statusText);
+    }
+
+    // 創建新文字
+    this.statusText = new Text({ text: message, style: defaultStyle });
+
+    // 將文字定位在螢幕中央
+    this.statusText.anchor.set(0.5);
+    this.statusText.x = 960; // 1920 的一半
+    this.statusText.y = 100; // 1080 的一半
+
+    // 加入容器中
+    this.itemCanvas.container.addChild(this.statusText);
+
+    // 一秒後移除
+    setTimeout(() => {
+      if (this.statusText) {
+        this.itemCanvas.container.removeChild(this.statusText);
+        this.statusText = null;
+      }
+    }, 1000);
   }
 
   // 檢查並處理廣用試紙的連接
@@ -299,10 +314,20 @@ export class ElectrolysisModule {
       return null;
     }
 
-    return this.itemCanvas.components.children.find((component) => {
-      // 檢查特定類型和電線類型
-      return (type === "電線" && component.type === "Wire") || component.type === type;
+    // 從搜尋類型中移除 .png 副檔名
+    const searchType = type.replace(".png", "");
+
+    const component = this.itemCanvas.components.children.find((component) => {
+      // 檢查組件是否為電線
+      if (searchType === "電線" && component.type === "Wire") {
+        return true;
+      }
+
+      // 非電線組件的直接類型比較
+      return component.type === searchType;
     });
+
+    return component;
   }
 
   // 設置選擇的溶液
@@ -313,10 +338,10 @@ export class ElectrolysisModule {
       // 停止所有動畫
       this.stopRandomMovement();
       this.stopElectrodesMovement();
-      this.setElectron.reset();
       this.ionMoving = false;
+      this.ionFlowMoving = false;
 
-      showStatusText("溶液已選擇：" + solutionName, this.itemCanvas);
+      this.showStatusText("溶液已選擇：" + solutionName);
 
       this.updateBeakerColor(this.solutionProperties[solutionName].color);
 
@@ -486,34 +511,155 @@ export class ElectrolysisModule {
       });
     }
   }
-  // 更新電子動畫狀態
-  updateElectronAnimation() {
-    // 只有當實驗進行中且使用者選擇要看時才顯示動畫
-    if (this.isElectrolysisActive && this.isElectronCheckboxChecked) {
-      this.setElectron.startElectronAnimation();
-    } else {
-      this.setElectron.stopElectronAnimation();
-    }
+
+  // 開始離子移動
+  startIonFlowMovement() {
+    if (!this.moduleSetup.isSetDown || !this.selectedSolution) return;
+    this.ionFlowMoving = true;
+
+    const components = this.itemCanvas.components.children;
+    const allPoints = [];
+    let center = { x: 0, y: 0 };
+
+    // 首先，收集所有離子位置並計算中心
+    components.forEach((component) => {
+      if (component.ions) {
+        component.ions.forEach((ion) => {
+          const pos = component.toGlobal({ x: ion.x, y: ion.y });
+          allPoints.push(pos);
+          center.x += pos.x;
+          center.y += pos.y;
+        });
+      }
+    });
+    if (allPoints.length === 0) return;
+
+    center.x /= allPoints.length;
+    center.y /= allPoints.length;
+    // 按角度排序點以進行圓周運動
+    allPoints.sort((a, b) => {
+      const angleA = Math.atan2(a.y - center.y, a.x - center.x);
+      const angleB = Math.atan2(b.y - center.y, b.x - center.x);
+      return angleB - angleA;
+    });
+    // 創建新的動畫
+    components.forEach((component) => {
+      if (component.ions) {
+        component.ions.forEach((ion, ionIndex) => {
+          if (ion.tween) ion.tween.kill();
+
+          // 儲存原始的 progress 值
+          const initialOffset = ionIndex / component.ions.length;
+          ion.originalProgress = initialOffset; // 新增這行
+          ion.progress = initialOffset;
+
+          const tween = gsap.to(ion, {
+            duration: 10,
+            progress: 1 + initialOffset,
+            repeat: -1,
+            ease: "none",
+            onUpdate: () => {
+              if (!this.ionFlowMoving) return;
+
+              // 計算實際進度（保持在 0-1 之間）
+              const currentProgress = ion.progress % 1;
+
+              // 計算當前點和下一個點的索引
+              const index = Math.floor(currentProgress * allPoints.length);
+              const nextIndex = (index + 1) % allPoints.length;
+              const currentPoint = allPoints[index];
+              const nextPoint = allPoints[nextIndex];
+
+              // 轉換為本地座標
+              const localCurrent = component.toLocal(currentPoint);
+              const localNext = component.toLocal(nextPoint);
+
+              // 在點之間線性插值
+              const t = (currentProgress * allPoints.length) % 1;
+              ion.x = localCurrent.x + (localNext.x - localCurrent.x) * t;
+              ion.y = localCurrent.y + (localNext.y - localCurrent.y) * t;
+            },
+          });
+          ion.tween = tween;
+        });
+      }
+    });
   }
 
-  // 處理電子流向顯示的切換
-  toggleElectronVisibility(isChecked) {
-    this.isElectronCheckboxChecked = isChecked;
-    this.updateElectronAnimation();
+  // 停止離子動畫
+  stopIonFlowAnimation() {
+    this.ionMoving = false;
+    const components = this.itemCanvas.components.children;
+    components.forEach((component) => {
+      if (component.ions) {
+        component.ions.forEach((ion) => {
+          if (ion.tween) {
+            ion.tween.kill();
+          }
+          // 重置離子位置
+          if (component.type === "Wire") {
+            // 儲存原始的 progress 值
+            const originalProgress = ion.originalProgress || 0;
+            // 使用組件的實際 joints 位置重新計算
+            const joint1 = component.joints[0];
+            const joint2 = component.joints[1];
+            // 確保 joints 存在且有正確的位置
+            if (joint1 && joint2) {
+              // 計算新的位置
+              ion.x = joint1.x + (joint2.x - joint1.x) * originalProgress;
+              ion.y = joint1.y + (joint2.y - joint1.y) * originalProgress;
+              // 重置當前 progress 為原始值
+              ion.progress = originalProgress;
+            }
+          } else {
+            // 非電線組件的離子重置
+            if (ion.originalX !== undefined && ion.originalY !== undefined) {
+              ion.x = ion.originalX;
+              ion.y = ion.originalY;
+            }
+          }
+          // 更新可見性
+          ion.visible = component.type === "燒杯" && this.ionVisible;
+        });
+      }
+      // 如果是電線組件，重新繪製並重新定位離子
+      if (component.type === "Wire") {
+        // 首先重新繪製電線
+        if (component.redrawWire) {
+          component.redrawWire();
+        }
+        // 然後重新定位所有離子
+        if (component.ions) {
+          component.ions.forEach((ion) => {
+            const originalProgress = ion.originalProgress || 0;
+            const joint1 = component.joints[0];
+            const joint2 = component.joints[1];
+            if (joint1 && joint2) {
+              ion.x = joint1.x + (joint2.x - joint1.x) * originalProgress;
+              ion.y = joint1.y + (joint2.y - joint1.y) * originalProgress;
+            }
+          });
+        }
+      }
+    });
   }
 
   // 重置
   reset() {
     this.stopRandomMovement();
     this.stopElectrodesMovement();
-    this.setElectron.reset();
+    this.validCircuit = false;
     this.ionAnimationActive = false;
     this.connectedPHPaper = null;
+    this.isAssembled = false;
+    this.isAllitem = false;
     this.resetBulbLight();
     this.ionVisible = false;
     this.ionMoving = false;
+    this.ionFlowMoving = false;
     this.moduleSetup.isSetDown = false;
-    this.isElectrolysisActive = false;
+    this.activeIonTweens.forEach((tween) => tween.kill());
+    this.activeIonTweens = [];
   }
 
   // 更新
@@ -530,197 +676,6 @@ export class ElectrolysisModule {
         }
       });
     }
-  }
-}
-
-export class SetElectron {
-  constructor(itemCanvas) {
-    this.itemCanvas = itemCanvas;
-    this.electrons = [];
-    this.electronAnimations = [];
-    this.center = null;
-    this.allPoints = [];
-    this.electronsContainer = new Container();
-    this.electronsContainer.zIndex = 2000; // 設置高的 zIndex
-    this.itemCanvas.container.addChild(this.electronsContainer);
-    this.electronsContainer.scale = this.itemCanvas.container.scale;
-
-    // 電子配置
-    this.electronConfigs = {
-      "電池.png": [
-        { x: -90, y: 0 },
-        { x: 0, y: 0 },
-        { x: 90, y: 0 },
-      ],
-      "燈泡.png": [
-        { x: -5, y: 90 },
-        { x: 5, y: 90 },
-      ],
-      "碳棒.png": [
-        { x: 0, y: -50 },
-        { x: 0, y: 0 },
-        { x: 0, y: 50 },
-      ],
-      "燒杯.png": [
-        { x: -50, y: 30 },
-        { x: 30, y: 30 },
-        { x: 110, y: 30 },
-      ],
-    };
-  }
-
-  // 創建單個電子/離子
-  createElectron() {
-    const electron = new Graphics().circle(0, 0, 5).fill(0xffff00);
-
-    electron.alpha = 0.8;
-    electron.visible = false;
-    return electron;
-  }
-
-  // 為組件創建電子
-  createElectronsForComponent(component) {
-    // 對於電線，使用其連接點
-    if (component.type === "Wire") {
-      if (!component.joints || component.joints.length !== 2) return;
-
-      // 取得電線兩端的全局位置
-      const start = component.toGlobal(component.joints[0]);
-      const end = component.toGlobal(component.joints[1]);
-
-      // 在電線上創建6個均勻分布的點
-      for (let i = 0; i < 6; i++) {
-        const electron = this.createElectron();
-        const progress = i / 5; // 0 到 1 之間的值
-
-        // 計算電子在電線上的位置
-        const globalX = start.x + (end.x - start.x) * progress;
-        const globalY = start.y + (end.y - start.y) * progress;
-
-        // 轉換為 electronsContainer 的本地座標
-        const localPos = this.electronsContainer.toLocal({ x: globalX, y: globalY });
-        electron.x = localPos.x;
-        electron.y = localPos.y;
-
-        this.electronsContainer.addChild(electron);
-        this.electrons.push({
-          sprite: electron,
-          component: component,
-          globalPos: { x: globalX, y: globalY },
-        });
-      }
-      return;
-    }
-
-    // 對於其他組件，使用預設的配置點
-    const config = this.electronConfigs[component.type + ".png"];
-    if (!config) return;
-
-    config.forEach((pos) => {
-      const electron = this.createElectron();
-      // 將組件本地座標轉換為全局座標
-      const globalPos = component.toGlobal(pos);
-      // 再轉換為 electronsContainer 的本地座標
-      const localPos = this.electronsContainer.toLocal(globalPos);
-
-      electron.x = localPos.x;
-      electron.y = localPos.y;
-
-      this.electronsContainer.addChild(electron);
-      this.electrons.push({
-        sprite: electron,
-        component: component,
-        globalPos: globalPos,
-      });
-    });
-  }
-
-  // 開始電子動畫
-  startElectronAnimation() {
-    this.stopElectronAnimation();
-
-    // 收集所有點並計算中心點
-    const points = this.electrons.map((e) => e.globalPos);
-    if (points.length < 2) return;
-
-    // 計算中心點
-    const center = points.reduce(
-      (acc, point) => {
-        acc.x += point.x;
-        acc.y += point.y;
-        return acc;
-      },
-      { x: 0, y: 0 }
-    );
-
-    center.x /= points.length;
-    center.y /= points.length;
-
-    // 按角度排序點
-    points.sort((a, b) => {
-      const angleA = Math.atan2(a.y - center.y, a.x - center.x);
-      const angleB = Math.atan2(b.y - center.y, b.x - center.x);
-      return angleA - angleB;
-    });
-
-    // 為每個電子創建動畫
-    this.electrons.forEach((electronData, index) => {
-      const electron = electronData.sprite;
-      electron.visible = true;
-
-      // 設置初始偏移量，確保電子均勻分布
-      const initialOffset = index / this.electrons.length;
-      electronData.progress = initialOffset;
-
-      const tween = gsap.to(electronData, {
-        duration: 15,
-        progress: 1 + initialOffset, // 動畫到完整的一圈加上初始偏移
-        repeat: -1,
-        ease: "none",
-        onUpdate: () => {
-          // 計算當前進度（保持在 0-1 之間）
-          const currentProgress = electronData.progress % 1;
-
-          // 計算當前點和下一個點的索引
-          const index = Math.floor(currentProgress * points.length);
-          const nextIndex = (index + 1) % points.length;
-          const currentPoint = points[index];
-          const nextPoint = points[nextIndex];
-
-          // 在點之間進行插值
-          const t = (currentProgress * points.length) % 1;
-          const globalX = currentPoint.x + (nextPoint.x - currentPoint.x) * t;
-          const globalY = currentPoint.y + (nextPoint.y - currentPoint.y) * t;
-
-          // 轉換為本地座標並更新電子位置
-          const localPos = this.electronsContainer.toLocal({ x: globalX, y: globalY });
-          electron.x = localPos.x;
-          electron.y = localPos.y;
-        },
-      });
-
-      this.electronAnimations.push(tween);
-    });
-  }
-
-  // 停止電子動畫
-  stopElectronAnimation() {
-    this.electronAnimations.forEach((anim) => anim?.kill());
-    this.electronAnimations = [];
-    this.electrons.forEach((e) => (e.sprite.visible = false));
-  }
-
-  // 重置模組
-  reset() {
-    this.stopElectronAnimation();
-    this.electrons.forEach((electron) => {
-      if (electron.sprite.parent) {
-        electron.sprite.parent.removeChild(electron.sprite);
-      }
-    });
-    this.electrons = [];
-    this.center = null;
-    this.allPoints = [];
   }
 }
 
@@ -752,12 +707,6 @@ export class ModuleSetup {
 
     // 建立所有連接並確保它們保持連接狀態
     this.forceConnectAllComponents(components);
-
-    Object.values(components).forEach((component) => {
-      if (component && this.itemCanvas.electronModule) {
-        this.itemCanvas.electronModule.createElectronsForComponent(component);
-      }
-    });
 
     return components;
   }
@@ -1069,7 +1018,7 @@ export class IonModule {
     if (this.solutionProperties[solutionName]) {
       this.currentSolution = solutionName;
     }
-    showStatusText("藥品已選擇：" + solutionName, this.itemCanvas);
+    this.showStatusText("溶液已選擇：" + solutionName);
   }
 
   updateBeakerReference() {
@@ -1108,6 +1057,7 @@ export class IonModule {
 
   createPowderParticles(bottle) {
     if (!this.currentSolution) {
+      this.showStatusText("請選擇溶液");
       return;
     }
 
@@ -1159,7 +1109,7 @@ export class IonModule {
       return;
     }
     if (!this.currentSolution) {
-      showStatusText("請選擇藥品", this.itemCanvas);
+      this.showStatusText("請選擇溶液");
       return;
     }
 
@@ -1286,7 +1236,7 @@ export class IonModule {
         ion.x = position.x;
         ion.y = position.y;
         ion.alpha = 0.8;
-        ion.visible = this.ionsVisible; // 添加這行
+        ion.visible = this.ionsVisible; // Add this line
 
         this.itemCanvas.container.addChild(ion);
         this.ions.add(ion);
@@ -1332,7 +1282,6 @@ export class IonModule {
     }
   }
 
-  // 把粒子加入燒杯內
   isParticleInBeaker(particle, beakerBounds) {
     const collision =
       particle.x >= beakerBounds.x &&
@@ -1343,13 +1292,39 @@ export class IonModule {
     return collision;
   }
 
+  // 顯示狀態文字
+  showStatusText(message) {
+    // 移除現有文字（如果有的話）
+    if (this.statusText) {
+      this.itemCanvas.container.removeChild(this.statusText);
+    }
+
+    // 創建新文字
+    this.statusText = new Text({ text: message, style: defaultStyle });
+
+    // 將文字定位在螢幕中央
+    this.statusText.anchor.set(0.5);
+    this.statusText.x = 960; // 1920 的一半
+    this.statusText.y = 100; // 1080 的一半
+
+    // 加入容器中
+    this.itemCanvas.container.addChild(this.statusText);
+
+    // 一秒後移除
+    setTimeout(() => {
+      if (this.statusText) {
+        this.itemCanvas.container.removeChild(this.statusText);
+        this.statusText = null;
+      }
+    }, 1000);
+  }
+
   update() {
     if (!this.cachedBeaker) {
       this.updateBeakerReference();
     }
 
     const currentBeakerBounds = this.getBeakerBounds();
-    // 檢查燒杯是否移動
     const beakerMoved = this.cachedBeaker && (this.lastBeakerX !== this.cachedBeaker.x || this.lastBeakerY !== this.cachedBeaker.y);
 
     // 如果燒杯移動了，更新所有離子的位置
@@ -1456,25 +1431,4 @@ export class IonModule {
     this.lastBeakerX = 0;
     this.lastBeakerY = 0;
   }
-}
-
-// 顯示狀態文字
-export function showStatusText(message, itemCanvas) {
-  // 創建新文字
-  const statusText = new Text({ text: message, style: defaultStyle });
-
-  // 將文字定位在螢幕中央
-  statusText.anchor.set(0.5);
-  statusText.x = 960; // 1920 的一半
-  statusText.y = 100; // 1080 的一半
-
-  // 加入容器中
-  itemCanvas.container.addChild(statusText);
-
-  // 一秒後移除
-  setTimeout(() => {
-    if (statusText) {
-      itemCanvas.container.removeChild(statusText);
-    }
-  }, 500);
 }
