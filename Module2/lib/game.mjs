@@ -28,7 +28,7 @@ class Game {
       "棉花.png",
       "藥品罐.png",
     ];
-    this.isZoomedIn = false;
+    //this.isZoomedIn = false;
     this.itemCanvas = new ItemsCanvas();
 
     this.inPage1 = false;
@@ -70,7 +70,7 @@ class Game {
       this.reloadbtn.alpha = 1;
     });
 
-    //放大縮小按鈕
+    /*//放大縮小按鈕
     const scaleUp = new Sprite(Texture.from("放大鏡.png"));
     scaleUp.anchor.set(0.5);
     scaleUp.scale.set(0.3);
@@ -132,7 +132,7 @@ class Game {
     this.scaleUpCon = new Container();
     this.scaleUpCon.x = 120;
     this.scaleUpCon.y = 980;
-    this.scaleUpCon.addChild(scaleUp, scaleUpText);
+    this.scaleUpCon.addChild(scaleUp, scaleUpText);*/
 
     //一件生成電路模組按鈕
     const setbtn = new Sprite(Texture.from("set.png"));
@@ -186,8 +186,7 @@ class Game {
       // Reset scale and position
       this.sceneContainer.scale.set(1);
       this.sceneContainer.position.set(0, 0);
-      this.isZoomedIn = false;
-      scaleUpText.text = "+";
+      //this.isZoomedIn = false;
 
       this.startTitle();
     });
@@ -299,7 +298,6 @@ class Game {
     this.UIContainer.removeChildren();
 
     this.UIContainer.addChild(this.reloadbtn); //重新整理按鈕
-    this.UIContainer.addChild(this.scaleUpCon); //放大縮小按鈕
     this.UIContainer.addChild(this.setbtnCon); //電路模組按鈕
     this.sceneContainer.addChild(this.itemCanvas.container); //場景畫布
 
@@ -394,7 +392,6 @@ class Game {
     this.UIContainer.removeChildren();
 
     this.UIContainer.addChild(this.reloadbtn); //重新整理按鈕
-    this.UIContainer.addChild(this.scaleUpCon); //放大縮小按鈕
     this.UIContainer.addChild(this.setbtnCon); //電路模組按鈕
 
     this.sceneContainer.addChild(this.itemCanvas.container); //場景畫布
@@ -408,8 +405,8 @@ class Game {
     // 開始電解按鈕
     this.startElectrolysisBtn = createButton({
       text: "開始電解",
-      x: 1548,
-      y: 255,
+      x: 1650,
+      y: 245,
       onClick: () => {
         console.log("22");
       },
@@ -417,8 +414,8 @@ class Game {
 
     this.checkBtn = createButton({
       text: "組裝完成",
-      x: 1548,
-      y: 440,
+      x: 1650,
+      y: 330,
       onClick: () => {
         console.log("222");
       },
@@ -426,20 +423,6 @@ class Game {
 
     this.UIContainer.addChild(this.startElectrolysisBtn); //開始電解按鈕
     this.UIContainer.addChild(this.checkBtn); //組裝完成按鈕
-
-    // 顯示離子流向按鈕
-    this.showIonFlow = createCheckboxBlock(
-      "顯示離子流向",
-      1650,
-      75,
-      () => {
-        console.log("顯示離子");
-      },
-      () => {
-        console.log("隱藏離子");
-      }
-    );
-    this.UIContainer.addChild(this.showIonFlow);
 
     // 離子顯示checkbox
     this.ionCon = createCheckboxBlock(
@@ -459,7 +442,7 @@ class Game {
     this.eleCon = createCheckboxBlock(
       "顯示電極",
       1650,
-      165,
+      160,
       () => {
         console.log("顯示電極");
       },
@@ -482,7 +465,7 @@ class Game {
     // 創建溶液下拉選單
     const drugs = new DropdownMenu({
       x: 1450,
-      y: 300,
+      y: 375,
       items: [
         "硫酸銅",
         "硫酸鋅",
@@ -515,7 +498,6 @@ class Game {
     this.UIContainer.removeChildren();
 
     this.UIContainer.addChild(this.reloadbtn); //重新整理按鈕
-    this.UIContainer.addChild(this.scaleUpCon); //放大縮小按鈕
     this.sceneContainer.addChild(this.itemCanvas.container); //場景畫布
 
     //清單項目
@@ -564,12 +546,9 @@ class Game {
     const currentTime = Date.now();
     if (this.electrolysisModule) {
       this.electrolysisModule.update(time);
-      if (this.inPage1) {
-        // Only check pH paper connection periodically
-        if (currentTime - this.electrolysisModule.lastPHCheckTime >= this.electrolysisModule.PHCheckInterval) {
-          this.electrolysisModule.handlePHPaperConnection();
-          this.electrolysisModule.lastPHCheckTime = currentTime;
-        }
+      if (this.inPage1 && currentTime - this.electrolysisModule.lastPHCheckTime >= this.electrolysisModule.PHCheckInterval) {
+        this.electrolysisModule.handlePHPaperConnection();
+        this.electrolysisModule.lastPHCheckTime = currentTime;
       }
     }
     this.ionModule.update(currentTime);

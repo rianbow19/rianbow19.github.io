@@ -17,14 +17,9 @@ export class ElectrolysisModule {
     this.moduleSetup = new ModuleSetup(itemCanvas);
     this.setElectron = new SetElectron(itemCanvas);
 
-    // 追蹤組件狀態
-    this.components = null;
-
     //pH試紙檢查
     this.lastPHCheckTime = 0;
     this.PHCheckInterval = 1000;
-    this.lastPHPaperPosition = null;
-    this.lastBeakerPosition = null;
 
     this.bulbLight = null;
     this.ionMoving = false;
@@ -226,54 +221,67 @@ export class ElectrolysisModule {
       bulb.addChild(this.bulbLight);
     }
 
-    // 先清除之前可能存在的閃爍動畫
-    gsap.killTweensOf(this.bulbLight);
+    // 創建一個類屬性來存儲當前的 timeline
+    this.lightTimeline = null;
 
+    // 在切換亮度時
     switch (brightness) {
       case "bright":
-        this.bulbLight.tint = 0xffff00; // 黃色
+        // 清除之前的 timeline
+        if (this.lightTimeline) {
+          this.lightTimeline.kill();
+        }
+
+        this.bulbLight.tint = 0xffff00;
         this.bulbLight.scale.set(1.5);
-        // 創建循環閃爍動畫
-        gsap.to(this.bulbLight, {
-          duration: 2,
-          alpha: 0.8,
-          ease: "power2.out",
-          onComplete: () => {
-            // 開始循環閃爍
-            gsap.to(this.bulbLight, {
-              duration: 0.5,
-              alpha: 0.75,
-              yoyo: true,
-              repeat: -1,
-              ease: "sine.inOut",
-            });
-          },
-        });
+
+        // 創建新的 timeline
+        this.lightTimeline = gsap
+          .timeline()
+          .to(this.bulbLight, {
+            duration: 2,
+            alpha: 0.8,
+            ease: "power2.out",
+          })
+          .to(this.bulbLight, {
+            duration: 0.5,
+            alpha: 0.75,
+            yoyo: true,
+            repeat: -1,
+            ease: "sine.inOut",
+          });
         break;
 
       case "dim":
-        this.bulbLight.tint = 0xffaa00; // 橙黃色
+        // 同樣的模式
+        if (this.lightTimeline) {
+          this.lightTimeline.kill();
+        }
+
+        this.bulbLight.tint = 0xffdd00;
         this.bulbLight.scale.set(1.2);
-        // 創建循環閃爍動畫（較弱的效果）
-        gsap.to(this.bulbLight, {
-          duration: 2,
-          alpha: 0.7,
-          ease: "power2.out",
-          onComplete: () => {
-            // 開始循環閃爍
-            gsap.to(this.bulbLight, {
-              duration: 0.5,
-              alpha: 0.65,
-              yoyo: true,
-              repeat: -1,
-              ease: "sine.inOut",
-            });
-          },
-        });
+
+        this.lightTimeline = gsap
+          .timeline()
+          .to(this.bulbLight, {
+            duration: 2,
+            alpha: 0.6,
+            ease: "power2.out",
+          })
+          .to(this.bulbLight, {
+            duration: 0.5,
+            alpha: 0.55,
+            yoyo: true,
+            repeat: -1,
+            ease: "sine.inOut",
+          });
         break;
 
       case "none":
       default:
+        if (this.lightTimeline) {
+          this.lightTimeline.kill();
+        }
         gsap.to(this.bulbLight, {
           duration: 0.5,
           alpha: 0,
@@ -517,20 +525,7 @@ export class ElectrolysisModule {
   }
 
   // 更新
-  update(deltaTime) {
-    if (this.ionAnimationActive && this.ions.length > 0) {
-      // 更新連接組件的離子位置
-      this.ions.forEach((ion) => {
-        if (ion.pathPoints && ion.pathCenter) {
-          const pos = this.getIonPosition(ion.progress, ion.pathPoints, ion.pathCenter);
-          if (pos) {
-            ion.x = pos.x;
-            ion.y = pos.y;
-          }
-        }
-      });
-    }
-  }
+  update(deltaTime) {}
 }
 
 export class SetElectron {
@@ -538,8 +533,6 @@ export class SetElectron {
     this.itemCanvas = itemCanvas;
     this.electrons = [];
     this.electronAnimations = [];
-    this.center = null;
-    this.allPoints = [];
     this.electronsContainer = new Container();
     this.electronsContainer.zIndex = 2000; // 設置高的 zIndex
     this.itemCanvas.container.addChild(this.electronsContainer);
@@ -719,8 +712,6 @@ export class SetElectron {
       }
     });
     this.electrons = [];
-    this.center = null;
-    this.allPoints = [];
   }
 }
 
@@ -729,7 +720,6 @@ export class ModuleSetup {
     this.itemCanvas = itemCanvas;
     this.centerX = 960;
     this.centerY = 540;
-    this.components = null;
   }
 
   setupElectrolysisModule() {
@@ -739,7 +729,6 @@ export class ModuleSetup {
 
     // 創建所有組件並儲存引用
     const components = this.createAllComponents();
-    this.components = components;
 
     // 先設置所有組件的位置
     this.positionAllComponents(components);
@@ -956,45 +945,6 @@ export class ModuleSetup {
   createComponent(imagePath, position) {
     return this.itemCanvas.createSceneItem(imagePath, position);
   }
-
-  connectComponents(components) {
-    for (let i = 0; i < components.length - 1; i++) {
-      const current = components[i];
-      const next = components[i + 1];
-
-      if (current && next) {
-        const currentJoints = current.getGlobalJointPositions();
-        const nextJoints = next.getGlobalJointPositions();
-
-        let minDistance = Infinity;
-        let bestJointPair = null;
-
-        currentJoints.forEach((currentJoint, currentIdx) => {
-          nextJoints.forEach((nextJoint, nextIdx) => {
-            const distance = Math.hypot(currentJoint.x - nextJoint.x, currentJoint.y - nextJoint.y);
-            if (distance < minDistance) {
-              minDistance = distance;
-              bestJointPair = {
-                current: { joint: current.joints[currentIdx], pos: currentJoint },
-                next: { joint: next.joints[nextIdx], pos: nextJoint },
-              };
-            }
-          });
-        });
-
-        if (bestJointPair) {
-          bestJointPair.current.joint.connected = true;
-          bestJointPair.next.joint.connected = true;
-          bestJointPair.current.joint.tint = 0x00ff00;
-          bestJointPair.next.joint.tint = 0x00ff00;
-        }
-      }
-    }
-
-    if (this.itemCanvas.recheckAllConnections) {
-      this.itemCanvas.recheckAllConnections();
-    }
-  }
 }
 
 export class IonModule {
@@ -1008,7 +958,6 @@ export class IonModule {
     this.lastBeakerX = 0;
     this.lastBeakerY = 0;
     this.ionsVisible = false;
-    this.ionStorage = [];
 
     // 溶液特性配置
     this.solutionProperties = {

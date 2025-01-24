@@ -3,7 +3,7 @@ import { DropdownMenu } from "./dropdownMenu.mjs";
 import { Container, Graphics, Sprite, Texture, Text } from "./pixi.mjs";
 import { defaultStyle, defaultStyle2, gdStyle, listStyle } from "./textStyle.mjs";
 import { ItemsCanvas } from "./itemsCanvas.mjs";
-import { ElectrolysisModule, IonModule, ModuleSetup } from "./experimentModule.mjs";
+import { ElectrolysisModule, ModuleSetup } from "./experimentModule.mjs";
 
 export { Game };
 class Game {
@@ -24,18 +24,18 @@ class Game {
       "U型管.png",
       "檢流計.png",
       "鋅銅電池雙燒杯.png",
+
       "迴紋針.png",
       "棉花.png",
+
       "藥品罐.png",
     ];
     this.isZoomedIn = false;
     this.itemCanvas = new ItemsCanvas();
 
-    this.inPage1 = false;
+    this.baseModel = false;
     // 創建電解實驗模組
     this.electrolysisModule = new ElectrolysisModule(this.itemCanvas);
-    this.ionModule = new IonModule(this.itemCanvas);
-    this.itemCanvas.setIonModule(this.ionModule);
 
     this.init();
   }
@@ -57,7 +57,6 @@ class Game {
     this.reloadbtn.on("pointerup", () => {
       this.itemCanvas.reset();
       this.electrolysisModule.reset();
-      this.ionModule.reset();
     });
     this.reloadbtn.on("pointerover", () => {
       this.reloadbtn.scale.set(0.163);
@@ -89,32 +88,11 @@ class Game {
 
     //放大縮小邏輯
     scaleUp.on("pointerup", () => {
-      // 找到場景中的燒杯
-      const beaker = this.itemCanvas.components.children.find((child) => child.isBeaker);
-
-      if (beaker) {
-        const oldScale = this.sceneContainer.scale.x;
-        const newScale = !this.isZoomedIn ? oldScale + 0.7 : oldScale - 0.7;
-
-        // 計算燒杯在世界座標中的位置
-        const beakerWorldPos = {
-          x: beaker.x * oldScale + this.sceneContainer.x,
-          y: beaker.y * oldScale + this.sceneContainer.y,
-        };
-
-        // 更新容器縮放
-        this.sceneContainer.scale.set(newScale);
-
-        // 計算新的容器位置以保持燒杯在同一位置
-        const newX = beakerWorldPos.x - beaker.x * newScale;
-        const newY = beakerWorldPos.y - beaker.y * newScale;
-
-        this.sceneContainer.position.set(newX, newY);
+      if (!this.isZoomedIn) {
+        this.sceneContainer.scale.set(this.sceneContainer.scale.x + 0.18);
       } else {
-        // 如果沒有燒杯，使用普通縮放
-        this.sceneContainer.scale.set(!this.isZoomedIn ? this.sceneContainer.scale.x + 0.18 : this.sceneContainer.scale.x - 0.18);
+        this.sceneContainer.scale.set(this.sceneContainer.scale.x - 0.18);
       }
-
       updateZoomText();
       this.isZoomedIn = !this.isZoomedIn;
     });
@@ -189,10 +167,6 @@ class Game {
   async startTitle() {
     this.sceneContainer.removeChildren();
     this.UIContainer.removeChildren();
-    this.itemCanvas.reset();
-    this.electrolysisModule.reset();
-    this.ionModule.reset();
-    this.inPage1 = false;
 
     const bg = new Sprite(Texture.from("底圖.png"));
     bg.y = -80;
@@ -283,18 +257,20 @@ class Game {
   modlePage1() {
     this.sceneContainer.removeChildren();
     this.UIContainer.removeChildren();
-
+    this.itemCanvas.reset();
     this.UIContainer.addChild(this.reloadbtn); //重新整理按鈕
     this.UIContainer.addChild(this.scaleUpCon); //放大縮小按鈕
     this.UIContainer.addChild(this.setbtnCon); //電路模組按鈕
+
     this.sceneContainer.addChild(this.itemCanvas.container); //場景畫布
 
-    this.inPage1 = true;
-
-    const draggableList = new ItemsList(this.imageList, this.itemCanvas, 5, [0, 4]);
-    // 設置 ItemsList 到 ItemCanvas
-    this.itemCanvas.setItemsList(draggableList);
-
+    //清單項目
+    const draggableList = new ItemsList(
+      this.imageList,
+      this.itemCanvas,
+      5, //項目數
+      [4, 0, 1, 2, 3, 5] // 選定的索引
+    );
     this.UIContainer.addChild(draggableList.container);
 
     // 開始電解按鈕
@@ -308,15 +284,16 @@ class Game {
     });
     this.UIContainer.addChild(this.startElectrolysisBtn); //開始電解按鈕
 
+    // 顯示離子流向按鈕
     this.showIonFlow = createCheckboxBlock(
       "顯示離子流向",
       1650,
       160,
       () => {
-        this.itemCanvas.togglePolarityMarkers(true);
+        console.log("顯示離子");
       },
       () => {
-        this.itemCanvas.togglePolarityMarkers(false);
+        console.log("隱藏離子");
       }
     );
     this.UIContainer.addChild(this.showIonFlow);
@@ -327,6 +304,7 @@ class Game {
       1650,
       75,
       () => {
+        this.itemCanvas.createComponentIons();
         if (this.electrolysisModule.isAssembled) {
           this.electrolysisModule.toggleIonAnimation(true);
         }
@@ -337,18 +315,19 @@ class Game {
     );
     this.UIContainer.addChild(this.ionCon);
 
+    // 創建模組設置器
+    const moduleSetup = new ModuleSetup(this.itemCanvas);
+
     this.setbtnCon.on("pointerup", () => {
       this.electrolysisModule.showStatusText("組裝中...");
-      // 直接設置組件
-      const components = this.electrolysisModule.moduleSetup.setupElectrolysisModule();
-
-      // 更新狀態
+      moduleSetup.setupElectrolysisModule();
       this.electrolysisModule.isAssembled = true;
       this.electrolysisModule.validCircuit = true;
       this.electrolysisModule.isAllitem = true;
 
-      // 如果需要顯示離子
+      // If ions are supposed to be visible, show them immediately
       if (this.ionCon?.children[3]?.visible) {
+        // Check if checkbox is checked
         this.electrolysisModule.toggleIonAnimation(true);
       }
     });
@@ -378,7 +357,7 @@ class Game {
   modlePage2() {
     this.sceneContainer.removeChildren();
     this.UIContainer.removeChildren();
-
+    this.itemCanvas.reset();
     this.UIContainer.addChild(this.reloadbtn); //重新整理按鈕
     this.UIContainer.addChild(this.scaleUpCon); //放大縮小按鈕
     this.UIContainer.addChild(this.setbtnCon); //電路模組按鈕
@@ -387,8 +366,6 @@ class Game {
 
     //清單項目
     const draggableList = new ItemsList(this.imageList, this.itemCanvas, 5, [0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
-    this.itemCanvas.setItemsList(draggableList);
-
     this.UIContainer.addChild(draggableList.container);
 
     // 開始電解按鈕
@@ -499,27 +476,45 @@ class Game {
   modlePage3() {
     this.sceneContainer.removeChildren();
     this.UIContainer.removeChildren();
-
+    this.itemCanvas.reset();
     this.UIContainer.addChild(this.reloadbtn); //重新整理按鈕
     this.UIContainer.addChild(this.scaleUpCon); //放大縮小按鈕
+    this.UIContainer.addChild(this.setbtnCon); //電路模組按鈕
     this.sceneContainer.addChild(this.itemCanvas.container); //場景畫布
 
     //清單項目
     const draggableList = new ItemsList(this.imageList, this.itemCanvas, 5, [0, 14]);
-
-    this.itemCanvas.setItemsList(draggableList);
     this.UIContainer.addChild(draggableList.container);
+
+    //組合模組
+    this.setbtnCon.on("pointerup", () => {
+      console.log("組合模組");
+    });
+
+    // 顯示離子流向按鈕
+    this.showIonFlow = createCheckboxBlock(
+      "顯示離子流向",
+      1650,
+      75,
+      () => {
+        console.log("顯示離子");
+      },
+      () => {
+        console.log("隱藏離子");
+      }
+    );
+    this.UIContainer.addChild(this.showIonFlow);
 
     // 離子顯示checkbox
     this.ionCon = createCheckboxBlock(
       "顯示離子",
       1650,
-      160,
+      75,
       () => {
-        this.ionModule.setIonsVisible(true);
+        console.log("顯示離子");
       },
       () => {
-        this.ionModule.setIonsVisible(false);
+        console.log("隱藏離子");
       }
     );
     this.UIContainer.addChild(this.ionCon);
@@ -540,26 +535,14 @@ class Game {
       prefix: "藥品",
       hoverColor: 0xf0f0f0,
     });
-    drugs.onSelect = (item) => {
-      this.ionModule.setSolution(item);
-    };
+    drugs.onSelect = (item) => console.log("Selected drug:", item);
     this.UIContainer.addChild(drugs.container);
   }
 
   update(time) {
-    const currentTime = Date.now();
     if (this.electrolysisModule) {
       this.electrolysisModule.update(time);
-      if (this.inPage1) {
-        // Only check pH paper connection periodically
-        if (currentTime - this.electrolysisModule.lastPHCheckTime >= this.electrolysisModule.PHCheckInterval) {
-          this.electrolysisModule.handlePHPaperConnection();
-          this.electrolysisModule.lastPHCheckTime = currentTime;
-        }
-      }
     }
-
-    this.ionModule.update(currentTime);
   }
 }
 

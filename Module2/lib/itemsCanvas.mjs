@@ -68,7 +68,6 @@ export class ItemsCanvas {
     // 新增離子配置
     this.ionConfigs = {
       "燒杯.png": {
-        positions: [],
         count: {
           positive: 15,
           negative: 15,
@@ -125,19 +124,24 @@ export class ItemsCanvas {
 
         sceneContainer.joints.push(joint);
         sceneContainer.addChild(joint);
-        // Add immediate verification
-        console.log("Wire component created:", {
-          type: sceneContainer.type,
-          hasJoints: Boolean(sceneContainer.joints),
-          componentsCount: this.components?.children?.length,
-        });
       }
 
       sceneContainer.addChild(wireBody);
       sceneContainer.wireBody = wireBody;
       sceneContainer.redrawWire = function () {
         this.wireBody.clear();
-        this.wireBody.moveTo(this.joints[0].x, this.joints[0].y).lineTo(this.joints[1].x, this.joints[1].y).stroke({ width: 20, color: 0xff8000 });
+        this.wireBody.moveTo(this.joints[0].x, this.joints[0].y).lineTo(this.joints[1].x, this.joints[1].y).stroke({
+          width: 25, // 稍微比主線寬一些
+          color: 0x000000, // 外邊框顏色（白色）
+          cap: "round",
+        });
+
+        // 再畫主要的線條（上層）
+        this.wireBody.moveTo(this.joints[0].x, this.joints[0].y).lineTo(this.joints[1].x, this.joints[1].y).stroke({
+          width: 20,
+          color: 0xff8000, // 主線顏色（橙色）
+          cap: "round",
+        });
       };
 
       sceneContainer.redrawWire();
@@ -276,17 +280,6 @@ export class ItemsCanvas {
     ion.visible = false;
 
     return ion;
-  }
-
-  // 極性標誌顯示
-  togglePolarityMarkers(visible) {
-    this.components.children.forEach((component) => {
-      if (component.type === "燒杯") {
-        component.ions.forEach((ion) => {
-          ion.polarityMarker.visible = visible;
-        });
-      }
-    });
   }
 
   setRandomPosition(ion, width, height) {

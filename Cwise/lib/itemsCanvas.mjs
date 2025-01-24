@@ -1,4 +1,8 @@
-import { Container, Sprite, Graphics, Texture } from "./pixi.mjs";
+import { ItemsList } from "./itemsList.mjs";
+import { Container, Sprite, Graphics, Text, Texture } from "./pixi.mjs";
+import { defaultStyle, defaultStyle2 } from "./textStyle.mjs";
+
+let dragTarget = null;
 
 export class ItemsCanvas {
   constructor() {
@@ -7,7 +11,6 @@ export class ItemsCanvas {
     this.dragStartPos = null;
     this.rotationCenter = null;
     this.draggingJoint = null;
-    this.beakerPlaced = false;
 
     // 創建拖拽區域
     this.dragArea = new Graphics().rect(0, 0, 1920, 1080).fill({ color: 0x000000, alpha: 0 });
@@ -16,9 +19,23 @@ export class ItemsCanvas {
     this.dragArea.zIndex = 9999;
     this.dragArea.visible = false;
 
+    // 新增刪除區域
+    this.deleteArea = new Container();
+    this.deleteArea.box = new Graphics()
+      .roundRect(-100, -50, 200, 100, 20)
+      .fill({ color: 0x000000, alpha: 0.2 })
+      .stroke({ width: 5, color: 0xffffff });
+    this.deleteArea.box.position.set(1600, 985);
+    this.deleteArea.text = new Text({ text: "刪除區", style: defaultStyle2 });
+    this.deleteArea.text.position.set(1600, 985);
+    this.deleteArea.text.anchor.set(0.5);
+    this.deleteArea.addChild(this.deleteArea.box, this.deleteArea.text);
+
     // 初始化容器
     this.components = new Container();
-    this.container.addChild(this.dragArea, this.components);
+    this.container.addChild(this.dragArea, this.deleteArea, this.components);
+
+    this.componentsToDelete = [];
 
     // 設置拖拽區域事件
     this.dragArea.on("pointermove", this.onDragMove.bind(this));
@@ -67,24 +84,30 @@ export class ItemsCanvas {
 
     // 新增離子配置
     this.ionConfigs = {
-      "燒杯.png": {
-        positions: [],
-        count: {
-          positive: 15,
-          negative: 15,
-        },
-      },
+      "電池.png": [
+        { x: -90, y: 0 },
+        { x: 0, y: 0 },
+        { x: 90, y: 0 },
+      ],
+      "燈泡.png": [
+        { x: -5, y: 90 },
+        { x: 5, y: 90 },
+      ],
+      "碳棒.png": [
+        { x: 0, y: -50 },
+        { x: 0, y: 0 },
+        { x: 0, y: 50 },
+      ],
+      "燒杯.png": [
+        { x: -50, y: 30 },
+        { x: 30, y: 30 },
+        { x: 110, y: 30 },
+      ],
     };
   }
 
   setItemsList(itemsList) {
     this.itemsList = itemsList;
-  }
-  setIonModule(ionModule) {
-    this.ionModule = ionModule;
-  }
-  setElectron(electron) {
-    this.electron = electron;
   }
 
   createSceneItem(imagePath, position) {
@@ -92,7 +115,7 @@ export class ItemsCanvas {
     sceneContainer.x = position.x;
     sceneContainer.y = position.y;
     sceneContainer.connectedComponent = -1;
-    sceneContainer.type = imagePath.replace(".png", "");
+    sceneContainer.type = imagePath.replace(".png", ""); // 新增此行以設置所有組件的類型
 
     if (this.itemsList) {
       requestAnimationFrame(() => {
@@ -104,7 +127,6 @@ export class ItemsCanvas {
     sceneContainer.ions = [];
 
     if (imagePath === "電線.png") {
-      // 移除電線的離子創建，保持其他電線相關代碼
       sceneContainer.type = "Wire";
       const wireBody = new Graphics();
       wireBody.eventMode = "static";
@@ -125,27 +147,28 @@ export class ItemsCanvas {
 
         sceneContainer.joints.push(joint);
         sceneContainer.addChild(joint);
-        // Add immediate verification
-        console.log("Wire component created:", {
-          type: sceneContainer.type,
-          hasJoints: Boolean(sceneContainer.joints),
-          componentsCount: this.components?.children?.length,
-        });
       }
 
       sceneContainer.addChild(wireBody);
       sceneContainer.wireBody = wireBody;
       sceneContainer.redrawWire = function () {
         this.wireBody.clear();
+
         this.wireBody.moveTo(this.joints[0].x, this.joints[0].y).lineTo(this.joints[1].x, this.joints[1].y).stroke({ width: 20, color: 0xff8000 });
+        //更新離子位置
+        this.ions.forEach((ion) => {
+          ion.x = this.joints[0].x + (this.joints[1].x - this.joints[0].x) * ion.progress;
+          ion.y = this.joints[0].y + (this.joints[1].y - this.joints[0].y) * ion.progress;
+        });
       };
 
       sceneContainer.redrawWire();
+      this.createWireIons(sceneContainer);
     } else if (imagePath === "廣用試紙.png") {
-      const paperBody = new Graphics().rect(-40, -150, 80, 300).fill(0x01ea00);
+      const paperBody = new Graphics().rect(-40, -100, 80, 200).fill(0x01ea00);
 
       // 創建測試區域（會變色的部分）
-      const testStrip = new Graphics().rect(-40, 0, 80, 150).fill(0x01ea00);
+      const testStrip = new Graphics().rect(-40, 0, 80, 100).fill(0x01ea00);
 
       sceneContainer.testStrip = testStrip; // 存儲測試區域的引用
       sceneContainer.addChild(paperBody, testStrip);
@@ -166,10 +189,17 @@ export class ItemsCanvas {
       const scale = sprite.texture.width / Math.max(sprite.texture.width, sprite.texture.height);
       sprite.scale.set(scale);
 
+      if (imagePath === "燒杯.png") {
+        sceneContainer.zIndex = 1000; // 使用高數值確保在最上層
+        this.components.sortableChildren = true; // 啟用容器的子元素排序
+      }
+
       const jointConfig = this.jointConfigs[imagePath] || [];
+
       sceneContainer.joints = jointConfig.map((config) => {
         const joint = new Graphics().circle(0, 0, 20).fill({ color: 0x00ff00, alpha: 0 }).stroke({ color: 0xadadad, width: 6, alpha: 0.3 });
 
+        // 計算連結點位置
         joint.position.set((config.x - 0.5) * sprite.width, (config.y - 0.5) * sprite.height);
         joint.connected = false;
         joint.eventMode = "static";
@@ -178,40 +208,9 @@ export class ItemsCanvas {
         joint.on("pointerdown", (event) => this.onDragStart(event, sceneContainer, joint));
         return joint;
       });
-      if (imagePath === "燒杯.png") {
-        sceneContainer.zIndex = 1000;
-        this.components.sortableChildren = true;
-        sprite.scale.set(1);
-
-        sceneContainer.getBounds = () => {
-          return {
-            x: sceneContainer.x - sprite.width / 2,
-            y: sceneContainer.y - sprite.height / 2,
-            width: sprite.width,
-            height: sprite.height,
-          };
-        };
-        this.createBeakerIons(sceneContainer);
-        sceneContainer.joints.forEach((joint) => {
-          joint.visible = false;
-        });
-        sceneContainer.isBeaker = true;
-      }
-      if (imagePath === "藥品罐.png") {
-        sprite.rotation = Math.PI / 1.5;
-        sprite.scale.set(0.5);
-
-        sceneContainer.getBounds = () => {
-          return {
-            x: sceneContainer.x - sprite.width / 2,
-            y: sceneContainer.y - sprite.height / 2,
-            width: sprite.width,
-            height: sprite.height,
-          };
-        };
-      }
 
       sceneContainer.addChild(sprite);
+      this.createComponentIons(sceneContainer, imagePath);
     }
 
     sceneContainer.joints.forEach((joint) => sceneContainer.addChild(joint));
@@ -223,107 +222,66 @@ export class ItemsCanvas {
 
     this.components.addChild(sceneContainer);
 
-    // 如果有電子模組，為組件創建電子
-    if (this.electron && this.electron.electronConfigs[imagePath]) {
-      this.electron.createElectronsForComponent(sceneContainer);
-    }
-
     return sceneContainer;
   }
 
-  // 新的燒杯離子創建方法
-  createBeakerIons(container) {
-    const { positive, negative } = this.ionConfigs["燒杯.png"].count;
-    const beakerWidth = 160; // 燒杯寬度
-    const beakerHeight = 80; // 燒杯高度
+  createWireIons(container) {
+    const numIons = 4;
+    const joint1 = container.joints[0];
+    const joint2 = container.joints[1];
 
-    // 創建正離子
-    for (let i = 0; i < positive; i++) {
-      const ion = this.createIon(true);
-      this.setRandomPosition(ion, beakerWidth, beakerHeight);
+    for (let i = 0; i < numIons; i++) {
+      const ion = new Graphics();
+      ion.circle(0, 0, 15);
+      ion.fill(0x87ceeb);
+      ion.rect(-5, -2, 12, 5);
+      ion.fill(0x00008b);
+      ion.visible = false;
+
+      // 修改：使用均勻分布的 progress 值
+      const progress = i / (numIons - 1); // 這樣會得到 0, 0.33, 0.66, 1
+      ion.progress = progress;
+      ion.originalProgress = progress; // 保存原始進度值
+
+      // 設置初始位置
+      ion.x = joint1.x + (joint2.x - joint1.x) * progress;
+      ion.y = joint1.y + (joint2.y - joint1.y) * progress;
+
       container.addChild(ion);
       container.ions.push(ion);
     }
 
-    // 創建負離子
-    for (let i = 0; i < negative; i++) {
-      const ion = this.createIon(false);
-      this.setRandomPosition(ion, beakerWidth, beakerHeight);
+    // 確保重新繪製電線以更新離子位置
+    if (container.redrawWire) {
+      container.redrawWire();
+    }
+  }
+
+  createComponentIons(container, imagePath) {
+    const config = this.ionConfigs[imagePath] || [];
+    config.forEach((pos) => {
+      const ion = new Graphics();
+      ion.circle(0, 0, 15);
+      ion.fill(0x87ceeb);
+      ion.rect(-5, -2, 12, 5);
+      ion.fill(0x00008b);
+      ion.visible = false;
+
+      // 儲存原始位置以便重置
+      ion.originalX = pos.x;
+      ion.originalY = pos.y;
+
+      ion.x = pos.x;
+      ion.y = pos.y;
+      ion.progress = 0;
+
       container.addChild(ion);
       container.ions.push(ion);
-    }
-  }
-
-  // 創建單個離子
-  createIon(isPositive) {
-    const ion = new Graphics();
-    // 離子主體
-    ion.circle(0, 0, 8);
-    ion.fill(isPositive ? 0xff0000 : 0x0000ff);
-
-    // 正負極標誌
-
-    if (isPositive) {
-      // 正號
-      ion.rect(-5, -1, 10, 2);
-      ion.rect(-1, -5, 2, 10);
-    } else {
-      // 負號
-      ion.rect(-5, -1, 10, 2);
-    }
-    ion.fill(0xffffff);
-    ion.isPositive = isPositive;
-    ion.visible = false;
-
-    return ion;
-  }
-
-  // 極性標誌顯示
-  togglePolarityMarkers(visible) {
-    this.components.children.forEach((component) => {
-      if (component.type === "燒杯") {
-        component.ions.forEach((ion) => {
-          ion.polarityMarker.visible = visible;
-        });
-      }
     });
-  }
-
-  setRandomPosition(ion, width, height) {
-    ion.x = Math.random() * 260 - 100;
-    ion.y = Math.random() * 230 - 70;
   }
 
   onDragStart(event, target, joint = null) {
     if (!event || !target) return;
-    if (target.isBeaker && this.beakerPlaced) {
-      return;
-    }
-
-    if (target.type === "藥品罐") {
-      // 用一個短暫的延遲來區分點擊和拖拽
-      const startPos = { x: event.global.x, y: event.global.y };
-
-      const checkClick = setTimeout(() => {
-        // 如果位置沒有明顯變化，視為點擊
-        const currentPos = { x: event.global.x, y: event.global.y };
-        const distance = Math.sqrt(Math.pow(currentPos.x - startPos.x, 2) + Math.pow(currentPos.y - startPos.y, 2));
-
-        if (distance < 5 && this.ionModule) {
-          // 5像素的閾值
-          console.log("Triggering bottle animation");
-          this.ionModule.handleBottleAnimation(target);
-          return; // 不執行拖拽
-        }
-      }, 100); // 100ms 的判斷時間
-
-      // 如果開始拖動，清除點擊檢查
-      const clearCheck = () => {
-        clearTimeout(checkClick);
-        target.off("pointermove", clearCheck);
-      };
-      target.on("pointermove", clearCheck);
-    }
 
     if (joint?.isJoint) {
       this.dragTarget = target;
@@ -346,8 +304,8 @@ export class ItemsCanvas {
     target.alpha = 0.5;
 
     // 記錄物件與滑鼠位置的偏移
-    const globalPos = this.dragTarget.toGlobal({ x: 0, y: 0 });
-    this.dragTarget.offset = {
+    const globalPos = dragTarget.toGlobal({ x: 0, y: 0 });
+    dragTarget.offset = {
       x: globalPos.x - event.global.x,
       y: globalPos.y - event.global.y,
     };
@@ -355,6 +313,9 @@ export class ItemsCanvas {
 
   onDragMove(event) {
     if (!this.dragTarget || !event?.global) return;
+
+    // 新增刪除檢查
+    this.checkAllDelete();
 
     if (this.dragTarget && this.draggingJoint) {
       if (this.draggingJoint.isJoint) {
@@ -442,6 +403,7 @@ export class ItemsCanvas {
 
   onDragEnd() {
     if (this.dragTarget) {
+      this.doAllDelete();
       this.recheckAllConnections();
       this.dragArea.visible = false;
       this.dragTarget.alpha = 1;
@@ -523,12 +485,6 @@ export class ItemsCanvas {
     this.draggingJoint = null;
     this.dragStartPos = null;
     this.rotationCenter = null;
-    this.beakerPlaced = false;
-
-    // 重置電子模組
-    if (this.electron) {
-      this.electron.reset();
-    }
 
     if (this.itemsList) {
       // 使用 ItemsList 自己保存的初始索引進行重置
@@ -536,6 +492,72 @@ export class ItemsCanvas {
         this.itemsList.restrictedItems[key] = false;
       });
       this.itemsList.updateDisplayedImages(this.itemsList.initialIndices);
+    }
+  }
+
+  // 新增刪除處理的方法
+  checkAllDelete() {
+    this.componentsToDelete.length = 0;
+    const deleteAreaBounds = this.deleteArea.getBounds();
+
+    // 第一次檢查：尋找接觸刪除區域的組件
+    let touchingComponents = new Set();
+
+    this.components.children.forEach((component) => {
+      component.tint = 0xffffff;
+
+      const compBounds = component.getBounds();
+      if (
+        compBounds.x + compBounds.width >= deleteAreaBounds.x &&
+        compBounds.x <= deleteAreaBounds.x + deleteAreaBounds.width &&
+        compBounds.y + compBounds.height >= deleteAreaBounds.y &&
+        compBounds.y <= deleteAreaBounds.y + deleteAreaBounds.height
+      ) {
+        touchingComponents.add(component);
+      }
+
+      // 檢查具有連結點的組件
+      component.joints.forEach((joint) => {
+        const globalPos = component.toGlobal(joint.position);
+        if (
+          globalPos.x >= deleteAreaBounds.x &&
+          globalPos.x <= deleteAreaBounds.x + deleteAreaBounds.width &&
+          globalPos.y >= deleteAreaBounds.y &&
+          globalPos.y <= deleteAreaBounds.y + deleteAreaBounds.height
+        ) {
+          touchingComponents.add(component);
+        }
+      });
+    });
+
+    // 第二次檢查：新增相連的組件
+    touchingComponents.forEach((component) => {
+      if (component.connectedComponent !== -1) {
+        this.components.children.forEach((otherComp) => {
+          if (otherComp.connectedComponent === component.connectedComponent) {
+            touchingComponents.add(otherComp);
+          }
+        });
+      }
+    });
+
+    // 套用視覺效果並準備刪除
+    touchingComponents.forEach((component) => {
+      component.tint = 0xff0000;
+      this.componentsToDelete.push(component);
+    });
+  }
+
+  doAllDelete() {
+    this.componentsToDelete.forEach((component) => {
+      this.components.removeChild(component);
+    });
+    this.componentsToDelete.length = 0;
+
+    if (this.itemsList) {
+      requestAnimationFrame(() => {
+        this.itemsList.updateRestrictedItems();
+      });
     }
   }
 }
