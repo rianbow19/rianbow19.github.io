@@ -17,13 +17,6 @@ DRAG_AREA.on("pointerupoutside", onDragEnd);
 DRAG_AREA.on("pointermove", onDragMove);
 
 function onDragStart(event) {
-  // 檢查是否為電池或燈泡的連結點
-  if (this.parent instanceof Battery || this.parent instanceof LightBulb) {
-    if (this.isJoint) {
-      return; // 如果是電池或燈泡的連結點，直接返回不執行任何操作
-    }
-  }
-
   if (!this.parent.isJoint) {
     dragTarget = this.parent;
     draggingJoint = this;
@@ -58,7 +51,7 @@ function onDragMove(event) {
     if (dragTarget instanceof Wire) {
       // 如果拖動的是電線本體
       if (!draggingJoint.isJoint) {
-        // 計算新位置
+        // 先計算新位置
         const newGlobalPos = {
           x: event.global.x + dragTarget.offset.x,
           y: event.global.y + dragTarget.offset.y,
@@ -68,12 +61,46 @@ function onDragMove(event) {
         const newLocalPos = dragTarget.parent.toLocal(newGlobalPos);
         dragTarget.position.set(newLocalPos.x, newLocalPos.y);
 
+        // 檢查所有連結點是否需要吸附
+        dragTarget.joints.forEach((joint) => {
+          const nearestConnection = findNearestConnection(joint);
+          if (nearestConnection) {
+            // 調整連結點位置以吸附
+            const globalSnapPos = nearestConnection.parent.toGlobal(nearestConnection.position);
+            const localSnapPos = joint.parent.toLocal(globalSnapPos);
+            joint.position.set(localSnapPos.x, localSnapPos.y);
+          }
+        });
+
         // 重繪電線
         dragTarget.redrawWire();
       } else {
-        // 如果拖動的是電線的連結點，只移動當前連結點
+        // 如果拖動的是電線的連結點
         const localPos = draggingJoint.parent.toLocal(event.global);
+
+        // 如果連結點已連接，先斷開連接
+        if (draggingJoint.connectedTo) {
+          const connectedJoint = draggingJoint.connectedTo;
+          draggingJoint.connectedTo = null;
+          connectedJoint.connectedTo = null;
+          draggingJoint.tint = 0xffffff;
+          connectedJoint.tint = 0xffffff;
+          draggingJoint.scale.set(1);
+          connectedJoint.scale.set(1);
+        }
+
+        // 正常移動連結點
         draggingJoint.position.set(localPos.x, localPos.y);
+
+        // 檢查是否有需要吸附的連結點
+        const nearestConnection = findNearestConnection(draggingJoint);
+        if (nearestConnection) {
+          // 如果找到近距離的連結點，進行吸附
+          const globalSnapPos = nearestConnection.parent.toGlobal(nearestConnection.position);
+          const localSnapPos = draggingJoint.parent.toLocal(globalSnapPos);
+          draggingJoint.position.set(localSnapPos.x, localSnapPos.y);
+        }
+
         draggingJoint.parent.redrawWire();
       }
     } else {
@@ -84,9 +111,55 @@ function onDragMove(event) {
       };
       const newLocalPos = dragTarget.parent.toLocal(newGlobalPos);
       dragTarget.position.set(newLocalPos.x, newLocalPos.y);
+
+      // 檢查組件的所有連結點是否需要吸附
+      if (dragTarget.joints) {
+        dragTarget.joints.forEach((joint) => {
+          const nearestConnection = findNearestConnection(joint);
+          if (nearestConnection) {
+            // 調整組件位置以使連結點吸附
+            const globalSnapPos = nearestConnection.parent.toGlobal(nearestConnection.position);
+            const localSnapPos = dragTarget.toLocal(globalSnapPos);
+            const offsetX = localSnapPos.x - joint.position.x;
+            const offsetY = localSnapPos.y - joint.position.y;
+            dragTarget.position.set(dragTarget.position.x + offsetX, dragTarget.position.y + offsetY);
+          }
+        });
+      }
     }
   }
   recheckAllConnections();
+}
+
+function findNearestConnection(joint) {
+  let nearestJoint = null;
+  let minDistance = 20; // 吸附距離閾值
+
+  // 獲取當前連結點的全域位置
+  const jointGlobalPos = joint.parent.toGlobal(joint.position);
+
+  // 遍歷所有組件
+  Components.children.forEach((component) => {
+    if (!component.joints || component === joint.parent) return;
+
+    component.joints.forEach((otherJoint) => {
+      if (otherJoint === joint) return;
+
+      // 獲取其他連結點的全域位置
+      const otherGlobalPos = otherJoint.parent.toGlobal(otherJoint.position);
+
+      // 計算距離
+      const distance = Math.sqrt(Math.pow(jointGlobalPos.x - otherGlobalPos.x, 2) + Math.pow(jointGlobalPos.y - otherGlobalPos.y, 2));
+
+      // 更新最近的連結點
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearestJoint = otherJoint;
+      }
+    });
+  });
+
+  return nearestJoint;
 }
 
 function onDragEnd() {
@@ -237,7 +310,7 @@ class Module2 {
     // 創建並定位ItemsList
     this.itemsList = new ItemsList(Components);
     this.container.addChild(this.itemsList.container);
-    this.itemsList.container.position.set(20, 140);
+    this.itemsList.container.position.set(20, 80);
 
     // 設置 ItemsList 的引用
     this.itemsList.setModule2(this);
@@ -276,6 +349,7 @@ class Module2 {
     this.ionAnimation.stop();
     this.electronAnimation.stop();
     this.metalStripAnim.reset();
+    this.itemsList.reset();
     this.isSuccess = false;
     // 重新初始化場景
     this.initializeScene();
@@ -357,6 +431,37 @@ class Module2 {
 
   // 新增檢查電路組裝的方法
   validateCircuitAssembly() {
+    // Helper function: 根據電路路徑點，找出連結在電路上的所有元件
+    function addCircuitComponents(circuitPoints, circuitComponents) {
+      Components.children.forEach((comp) => {
+        if (comp.joints) {
+          comp.joints.forEach((joint) => {
+            const globalJointPos = comp.toGlobal(joint.position);
+            if (
+              circuitPoints.some(
+                (circuitPoint) => Math.abs(circuitPoint.x - globalJointPos.x) < 10 && Math.abs(circuitPoint.y - globalJointPos.y) < 10
+              )
+            ) {
+              circuitComponents.add(comp);
+            }
+          });
+        }
+      });
+    }
+
+    // Helper function: 深度遍歷連結的元件，組成一個電路
+    function traverseCircuit(component, circuit) {
+      if (circuit.components.has(component)) return;
+      circuit.components.add(component);
+      if (component.type === "Battery") circuit.batteryCount++;
+      if (component.type === "LightBulb") circuit.lightBulbs.push(component);
+      component.joints.forEach((joint) => {
+        if (joint.connectedTo) {
+          traverseCircuit(joint.connectedTo.parent, circuit);
+        }
+      });
+    }
+
     const requiredComponents = {
       ZincStrip: 1,
       CopperStrip: 1,
@@ -379,244 +484,198 @@ class Module2 {
       Cotton: "棉花",
     };
 
-    // 計算現有元件數量
-    const componentCounts = {};
     const allComponents = Components.children;
+    const componentCounts = {};
+
+    // 計算各類元件數量
     allComponents.forEach((component) => {
       componentCounts[component.type] = (componentCounts[component.type] || 0) + 1;
     });
-
-    // 檢查是否有棉花已被連接
-    const cottonConnections = allComponents.filter((c) => c.type === "Cotton").some((cotton) => cotton.joints.some((joint) => joint.connectedTo));
-
-    if (cottonConnections) {
-      return {
-        success: false,
-        message: "棉花是絕緣體，不能導電！",
-      };
-    }
-
-    // 強制規定：燈泡、電池和迴紋針不能連接到檢流計
-    const forbiddenTypes = ["LightBulb", "Battery", "Clip"];
-    allComponents.forEach((component) => {
-      if (forbiddenTypes.includes(component.type)) {
-        component.joints.forEach((joint) => {
-          if (joint.connectedTo && joint.connectedTo.parent.type === "Ammeter") {
-            // 移除無效連接並重設檢流計連接點的視覺屬性
-            joint.connectedTo.connectedTo = null;
-            joint.connectedTo.tint = 0xffffff;
-            joint.connectedTo.scale.set(1);
-            joint.connectedTo = null;
-          }
-        });
-      }
-    });
-
-    // 檢查燈泡連接狀態，並在不替換燈泡精靈的情況下新增光效
-    const lightBulbs = allComponents.filter((c) => c.type === "LightBulb");
-
-    // 統一計算一個全局的光效縮放值
-    let calculatedAlpha = 0.8;
-    const anyHasBattery = lightBulbs.some((bulb) => {
-      const connectedTypes = bulb.joints.map((joint) => joint.connectedTo?.parent.type).filter(Boolean);
-      return connectedTypes.includes("Battery");
-    });
-    if (anyHasBattery) {
-      calculatedAlpha += 0.5;
-    }
-
-    lightBulbs.forEach((bulb) => {
-      const connectedTypes = bulb.joints.map((joint) => joint.connectedTo?.parent.type).filter(Boolean);
-      const hasValidCircuit = connectedTypes.length >= 1;
-
-      // 更新燈泡外觀：新增或更新光效精靈
-      let lightEffect = bulb.children.find((child) => child.name === "lightEffect");
-      if (hasValidCircuit) {
-        if (!lightEffect) {
-          lightEffect = new Sprite(Texture.from("燈泡光.png"));
-          lightEffect.name = "lightEffect";
-          lightEffect.anchor.set(0.5);
-          lightEffect.position.set(0, -30);
-          lightEffect.alpha = 0.6;
-          // 確保光效顯示在燈泡精靈之上
-          bulb.addChild(lightEffect);
-        }
-        lightEffect.scale.set(calculatedAlpha);
-      }
-    });
-
-    // 將迴紋針視為電線進行驗證
-    const wireLikeComponents = [...allComponents.filter((c) => c.type === "Wire" || c.type === "Clip")];
+    // 電線數量包含 Wire 與 Clip
+    const wireLikeComponents = allComponents.filter((c) => c.type === "Wire" || c.type === "Clip");
     componentCounts["Wire"] = wireLikeComponents.length;
 
     // 驗證必需元件是否齊全
     for (const [type, count] of Object.entries(requiredComponents)) {
       if (!componentCounts[type] || componentCounts[type] < count) {
-        return {
-          success: false,
-          message: "不對喔！再想想看，有哪些組件還沒有放置呢？",
-        };
+        return { success: false, message: "不對喔！再想想看，有哪些組件還沒有放置呢？" };
       }
     }
 
-    // 驗證連接
-    const connections = new Map();
-    Components.children.forEach((component) => {
-      component.joints.forEach((joint, index) => {
-        if (joint.connectedTo) {
-          const connectedComponent = joint.connectedTo.parent;
-          connections.set(`${component.type}-${index}`, `${connectedComponent.type}`);
-        }
-      });
-    });
-
-    // 正確組裝所需的連接
+    // 驗證重要組件的連接
     const requiredConnections = [
-      // 鋅片必須連接到電線和燒杯
       { component: "ZincStrip", connections: ["Wire", "Beaker"] },
-      // 銅片必須連接到電線和燒杯
       { component: "CopperStrip", connections: ["Wire", "Beaker"] },
-      // U型管必須連接到兩個燒杯
       { component: "UTube", connections: ["Beaker", "Beaker"] },
-      // 檢流計必須連接到兩個電線
       { component: "Ammeter", connections: ["Wire", "Wire"] },
     ];
 
-    // 驗證每個必要連接
-    for (const requirement of requiredConnections) {
-      const component = Components.children.find((c) => c.type === requirement.component);
-      if (!component) continue;
+    for (const req of requiredConnections) {
+      const comp = allComponents.find((c) => c.type === req.component);
+      if (!comp) continue;
 
-      // 特別處理Ammeter的情況 - 必須兩個點都連到Wire
-      if (requirement.component === "Ammeter") {
-        const connectedToWires = component.joints.filter((joint) => joint.connectedTo && joint.connectedTo.parent.type === "Wire").length;
-
-        if (connectedToWires !== 2) {
-          return {
-            success: false,
-            message: "檢流計必須兩個連結點都連接到電線",
-          };
+      if (req.component === "Ammeter") {
+        const wireConnections = comp.joints.filter((j) => j.connectedTo && j.connectedTo.parent.type === "Wire").length;
+        if (wireConnections !== 2) {
+          return { success: false, message: "檢流計必須兩個連結點都連接到電線" };
         }
-        continue; // 檢流計檢查通過，繼續檢查其他組件
+        continue;
       }
 
-      // 特別處理UTube的情況 - 必須兩個點都連到Beaker
-      if (requirement.component === "UTube") {
-        const connectedToBeakers = component.joints.filter((joint) => joint.connectedTo && joint.connectedTo.parent.type === "Beaker").length;
-
-        if (connectedToBeakers !== 2) {
-          return {
-            success: false,
-            message: "U型管必須兩個連結點都連接到燒杯",
-          };
+      if (req.component === "UTube") {
+        const beakerConnections = comp.joints.filter((j) => j.connectedTo && j.connectedTo.parent.type === "Beaker").length;
+        if (beakerConnections !== 2) {
+          return { success: false, message: "U型管必須兩個連結點都連接到燒杯" };
         }
-        continue; // U型管檢查通過，繼續檢查其他組件
+        continue;
       }
 
-      const componentConnections = component.joints.map((joint) => (joint.connectedTo ? joint.connectedTo.parent.type : null));
-
-      const missingConnections = requirement.connections.filter((reqConn) => !componentConnections.includes(reqConn));
-
-      if (missingConnections.length > 0) {
-        return {
-          success: false,
-          message: `${typeToName[requirement.component]} 連接不正確`,
-        };
+      const compConnections = comp.joints.map((j) => (j.connectedTo ? j.connectedTo.parent.type : null));
+      const missing = req.connections.filter((reqConn) => !compConnections.includes(reqConn));
+      if (missing.length > 0) {
+        return { success: false, message: `${typeToName[req.component]} 連接不正確` };
       }
     }
 
-    // 驗證 Ammeter、CopperStrip、ZincStrip 所連接的電線（或類似電線的 Clip）
-    // 另一端必須連接其他組件，否則組裝不成功
+    // 檢查 Ammeter、CopperStrip 與 ZincStrip 連接的電線另一端必須接到其他組件
     const componentsToCheck = ["Ammeter", "CopperStrip", "ZincStrip"];
-    for (const comp of Components.children.filter((c) => componentsToCheck.includes(c.type))) {
+    for (const comp of allComponents.filter((c) => componentsToCheck.includes(c.type))) {
       for (const joint of comp.joints) {
         if (joint.connectedTo && (joint.connectedTo.parent.type === "Wire" || joint.connectedTo.parent.type === "Clip")) {
           const wireComp = joint.connectedTo.parent;
-          // 檢查該電線的所有接點中，至少有一個接點連接的組件不是當前的 comp
           const hasOtherConnection = wireComp.joints.some((j) => j.connectedTo && j.connectedTo.parent !== comp);
           if (!hasOtherConnection) {
-            return {
-              success: false,
-              message: `${typeToName[comp.type]} 所連接的電線另一端必須連接其他組件`,
-            };
+            return { success: false, message: `${typeToName[comp.type]} 所連接的電線另一端必須連接其他組件` };
           }
         }
       }
     }
 
-    // 建立一個 Map 來記錄每個連結點被連結的次數
-    const connectionUsage = new Map();
+    // 根據電路路徑點，找出所有與電路相關的元件
+    const circuitPoints = getCircuitPathPoints();
+    const circuitComponents = new Set();
+    addCircuitComponents(circuitPoints, circuitComponents);
 
-    // 遍歷所有元件及其連結點
-    Components.children.forEach((component) => {
-      component.joints.forEach((joint) => {
+    // 驗證電路中每個元件的連接點，另一端必須有連接到其他組件
+    for (const comp of circuitComponents) {
+      for (const joint of comp.joints) {
         if (joint.connectedTo) {
-          // 記錄來源連結點
+          const partnerComponent = joint.connectedTo.parent;
+          const hasOtherValidConnection = partnerComponent.joints.some(
+            (pj) => pj !== joint.connectedTo && pj.connectedTo && pj.connectedTo.parent !== partnerComponent
+          );
+          if (!hasOtherValidConnection) {
+            return { success: false, message: `${typeToName[comp.type]} 另一端必須連接其他組件` };
+          }
+        }
+      }
+    }
+
+    // 檢查所有連結點是否只連結到唯一的連結點
+    const connectionUsage = new Map();
+    allComponents.forEach((comp) => {
+      comp.joints.forEach((joint) => {
+        if (joint.connectedTo) {
           const partnerJoint = joint.connectedTo;
-          // 以 partnerJoint 作為 key 記錄連結次數
-          const currentCount = connectionUsage.get(partnerJoint) || 0;
-          connectionUsage.set(partnerJoint, currentCount + 1);
+          connectionUsage.set(partnerJoint, (connectionUsage.get(partnerJoint) || 0) + 1);
         }
       });
     });
-
-    // 檢查是否有連結點被連結超過一次
-    for (const [joint, count] of connectionUsage.entries()) {
+    for (const count of connectionUsage.values()) {
       if (count > 1) {
-        return {
-          success: false,
-          message: "所有連結點只能連結一個連結點",
-        };
+        return { success: false, message: "所有連結點只能連結一個連結點" };
       }
     }
 
-    // 驗證燒杯溶液
-    const uTube = Components.children.find((c) => c.type === "UTube");
+    // 驗證 U型管溶液
+    const uTube = allComponents.find((c) => c.type === "UTube");
     if (!uTube.solution) {
-      return {
-        success: false,
-        message: "請為U型管選擇溶液",
-      };
+      return { success: false, message: "請為U型管選擇溶液" };
     }
     if (uTube.solution !== "硝酸鉀") {
-      return {
-        success: false,
-        message: "不對喔，U型管溶液不正確！",
-      };
+      return { success: false, message: "不對喔，U型管溶液不正確！" };
     }
 
-    // Verify beaker solutions
-    const beakers = Components.children.filter((c) => c.type === "Beaker");
-    if (!beakers.every((beaker) => beaker.solution)) {
-      return {
-        success: false,
-        message: "請為所有燒杯選擇溶液",
-      };
+    // 驗證所有燒杯溶液
+    const beakers = allComponents.filter((c) => c.type === "Beaker");
+    if (!beakers.every((b) => b.solution)) {
+      return { success: false, message: "請為所有燒杯選擇溶液" };
+    }
+    const solutionCounts = { 硫酸銅: 0, 硫酸鋅: 0 };
+    beakers.forEach((b) => {
+      if (b.solution in solutionCounts) {
+        solutionCounts[b.solution]++;
+      }
+    });
+    if (solutionCounts["硫酸銅"] !== 1 || solutionCounts["硫酸鋅"] !== 1) {
+      return { success: false, message: "不對喔，燒杯溶液不正確！" };
     }
 
-    // Count solutions in beakers
-    const solutionCounts = {
-      硫酸銅: 0,
-      硫酸鋅: 0,
-    };
+    // 檢查棉花是否連接到電路中的任一元件（棉花為絕緣體）
+    const cottonConnected = allComponents
+      .filter((c) => c.type === "Cotton")
+      .some((cotton) => cotton.joints.some((joint) => joint.connectedTo && circuitComponents.has(joint.connectedTo.parent)));
+    if (cottonConnected) {
+      return { success: false, message: "棉花是絕緣體，不能導電！" };
+    }
 
-    beakers.forEach((beaker) => {
-      if (beaker.solution in solutionCounts) {
-        solutionCounts[beaker.solution]++;
+    // 驗證電路中是否包含所有重要組件
+    function hasRequiredComponents(componentsSet) {
+      const requiredTypes = ["ZincStrip", "CopperStrip", "UTube", "Ammeter"];
+      return requiredTypes.every((type) => Array.from(componentsSet).some((comp) => comp.type === type));
+    }
+
+    this.isSuccess = true;
+
+    // 處理燈泡及電路分組
+    const lightBulbs = allComponents.filter((c) => c.type === "LightBulb");
+    // 移除所有燈泡原有的光效
+    lightBulbs.forEach((bulb) => {
+      const lightEffect = bulb.children.find((child) => child.name === "lightEffect");
+      if (lightEffect) {
+        bulb.removeChild(lightEffect);
       }
     });
 
-    if (solutionCounts["硫酸銅"] !== 1 || solutionCounts["硫酸鋅"] !== 1) {
-      return {
-        success: false,
-        message: "不對喔，燒杯溶液不正確！",
-      };
-    }
+    const circuits = [];
+    lightBulbs.forEach((bulb) => {
+      let foundCircuit = circuits.find((circuit) => circuit.components.has(bulb));
+      if (!foundCircuit) {
+        const circuit = {
+          components: new Set(),
+          lightBulbs: [],
+          batteryCount: 0,
+        };
+        traverseCircuit(bulb, circuit);
+        circuits.push(circuit);
+      }
+    });
 
-    // 如果所有檢查都通過
-    this.isSuccess = true;
+    // 更新燈泡光效：只有當電路包含所有重要組件時才發光
+    circuits.forEach((circuit) => {
+      if (hasRequiredComponents(circuit.components)) {
+        const bulbCount = circuit.lightBulbs.length;
+        const batteryCount = circuit.batteryCount;
+        if (bulbCount > 0) {
+          let brightness = 1 - (bulbCount - 1) * 0.25 + batteryCount * 0.25;
+          brightness = Math.max(0.5, Math.min(1.5, brightness));
+          circuit.lightBulbs.forEach((bulb) => {
+            let lightEffect = bulb.children.find((child) => child.name === "lightEffect");
+            if (!lightEffect) {
+              lightEffect = new Sprite(Texture.from("燈泡光.png"));
+              lightEffect.name = "lightEffect";
+              lightEffect.alpha = 0.7;
+              lightEffect.anchor.set(0.5);
+              lightEffect.position.set(0, -30);
+              bulb.addChild(lightEffect);
+            }
+            lightEffect.scale.set(brightness);
+          });
+        }
+      }
+    });
 
-    // 如果已勾選，就立刻啟動離子和電子動畫
+    // 啟動動畫
     if (this.isIonCheck && !this.ionAnimation.isAnimating) {
       this.ionAnimation.start();
     }
@@ -624,11 +683,7 @@ class Module2 {
       this.electronAnimation.start();
     }
 
-    // 如果所有檢查都通過
-    return {
-      success: true,
-      message: "組裝成功！",
-    };
+    return { success: true, message: "組裝成功！" };
   }
 
   updateAmmeterPointer() {
@@ -671,7 +726,7 @@ class Module2 {
     buttonText.anchor.set(0.5);
 
     debugButton.addChild(buttonBg, buttonText);
-    debugButton.position.set(1500, 1000);
+    debugButton.position.set(1300, 90);
     debugButton.eventMode = "static";
     debugButton.cursor = "pointer";
 
@@ -800,7 +855,7 @@ class Battery extends Container {
 
     const body = new Sprite(Texture.from("電池.png"));
     body.anchor.set(0.5);
-    body.scale.set(0.7);
+    body.scale.set(0.6);
     body.eventMode = "static";
     body.cursor = "pointer";
     body.on("pointerdown", onDragStart);
@@ -938,9 +993,7 @@ class Beaker extends Container {
     this.body.anchor.set(0.5);
     this.body.scale.set(0.8);
     this.body.rotation = 0;
-    this.body.eventMode = "static";
-    this.body.cursor = "pointer";
-    this.body.on("pointerdown", onDragStart);
+
     this.body.filters = [new ColorMatrixFilter()];
     this.body.filters[0].brightness(1);
     this.body.zIndex = 50;
@@ -1304,8 +1357,8 @@ class Clip extends Container {
     body.on("pointerdown", onDragStart);
 
     const JOINT_POSITION = [
-      [-90, 0],
-      [90, 0],
+      [-70, 0],
+      [70, 0],
     ];
     for (let [x, y] of JOINT_POSITION) {
       const joint = new Graphics().circle(0, 0, 30).fill({ color: 0xffffff, alpha: 0.5 }).stroke({ color: 0xffffff, width: 2 });
@@ -1575,6 +1628,8 @@ class IonAnimation {
     if (this.isAnimating) return;
     this.isAnimating = true;
     // 每次啟動動畫時更新 token，讓之前的動畫循環失效
+    this.container.visible = true;
+
     this._animationToken++;
     const currentToken = this._animationToken;
 
@@ -1591,7 +1646,7 @@ class IonAnimation {
     this.isAnimating = false;
     // 更新 token，確保所有現有的非同步循環能夠終止
     this._animationToken++;
-
+    this.container.visible = false;
     // 取消 ionContainer 中所有子物件的 tween 動畫
     this.ionContainer.children.forEach((child) => {
       gsap.killTweensOf(child);
@@ -1609,9 +1664,6 @@ class IonAnimation {
   }
 }
 
-// 修改後的 helper 函式：從 ZincStrip 連結點開始，依序沿著連線走到 CopperStrip 為止。
-// Ammeter 的連線定義為 { component: "Ammeter", connections: ["Wire", "Wire"] }，
-// 代表電子從 Ammeter 一端進入，會從另一端離開。
 function getCircuitPathPoints() {
   let startJoint = null;
   // 找出起點：從 Wire 中找出與 ZincStrip 相連的連結點
@@ -1653,7 +1705,7 @@ function getCircuitPathPoints() {
           break;
         }
       }
-    } else if (parentComp.type === "Ammeter") {
+    } else if (parentComp.type === "Ammeter" || parentComp.type === "Clip" || parentComp.type === "LightBulb" || parentComp.type === "Battery") {
       // Ammeter 有兩個連結點，找到另一個連接點
       let otherJoint = null;
       for (const joint of parentComp.joints) {
@@ -1983,8 +2035,6 @@ class ItemsList {
   constructor() {
     this.container = new Container();
     this.items = [];
-    this.currentPage = 0;
-    this.itemsPerPage = 5;
     this.module2 = null;
 
     this.components = {
@@ -1997,61 +2047,40 @@ class ItemsList {
       棉花: { texture: "棉花.png", type: "Cotton" },
     };
 
-    this.init();
-  }
-
-  init() {
-    this.createBackground();
     this.createItems();
-    this.createPageButtons();
   }
 
   setModule2(module2) {
     this.module2 = module2;
   }
 
-  createBackground() {
-    const bg = new Graphics().rect(0, 0, 160, 800).fill(0xf0f0f0).stroke({ width: 2, color: 0x999999 });
-    this.container.addChild(bg);
-
-    const titleBg = new Graphics().rect(0, 0, 160, 50).fill(0xe0e0e0).stroke({ width: 2, color: 0x999999 });
-    this.container.addChild(titleBg);
-
-    const title = new Text({
-      text: "組件清單",
-      style: {
-        fontSize: 24,
-        fill: 0x333333,
-        align: "center",
-      },
-    });
-    title.position.set(80, 25);
-    title.anchor.set(0.5);
-    this.container.addChild(title);
+  // Call this method on reset to re-enable single-use items
+  reset() {
+    this.container.removeChildren();
+    this.createItems();
   }
 
   createItems() {
+    // 銷毀現有的項目
     this.items.forEach((item) => item.destroy());
     this.items = [];
 
-    const startIdx = this.currentPage * this.itemsPerPage;
     const componentNames = Object.keys(this.components);
-
-    for (let i = 0; i < this.itemsPerPage; i++) {
-      const idx = startIdx + i;
-      if (idx >= componentNames.length) break;
-
-      const name = componentNames[idx];
+    // 將組件以垂直欄排列，組件間隔為5（項目高度120加上5的間距，即125）
+    for (let i = 0; i < componentNames.length; i++) {
+      const name = componentNames[i];
       const component = this.components[name];
 
       const item = new Container();
-      item.position.set(20, 70 + i * 140);
+      // 設定項目的位置；根據需要調整 x 與 y 值
+      item.position.set(20, 70 + i * 125);
 
-      const itemBg = new Graphics().roundRect(0, 0, 120, 120, 15).fill(0xffffff).stroke({ width: 2, color: 0xcccccc });
+      const itemBg = new Graphics().roundRect(0, 0, 120, 120, 15).fill(0xeeeeee).stroke({ width: 2, color: 0x3c3c3c });
       item.addChild(itemBg);
 
       const sprite = new Sprite(Texture.from(component.texture));
       sprite.anchor.set(0.5);
+      // 調整精靈大小以適應項目區域
       const scale = 80 / Math.max(sprite.width, sprite.height);
       sprite.scale.set(scale);
       sprite.position.set(60, 50);
@@ -2077,71 +2106,10 @@ class ItemsList {
     }
   }
 
-  createPageButtons() {
-    const totalPages = Math.ceil(Object.keys(this.components).length / this.itemsPerPage);
-
-    const prevButton = new Container();
-    const prevBg = new Graphics().circle(0, 0, 15).fill(0xdddddd).stroke({ width: 2, color: 0x999999 });
-    const prevArrow = new Graphics().poly([-5, 0, 5, -8, 5, 8]).fill(0x333333);
-    prevButton.addChild(prevBg, prevArrow);
-    prevButton.position.set(40, 770);
-    prevButton.eventMode = "static";
-    prevButton.cursor = "pointer";
-    prevButton.visible = this.currentPage > 0;
-    prevButton.on("pointerup", () => {
-      if (this.currentPage > 0) {
-        this.currentPage--;
-        this.createItems();
-        this.updatePageButtons();
-      }
-    });
-    prevButton.on("pointerover", () => {
-      prevButton.tint = 0x999999;
-    });
-    prevButton.on("pointerdown", () => {
-      prevButton.tint = 0x999999;
-    });
-    prevButton.on("pointerout", () => {
-      prevButton.tint = 0xffffff;
-    });
-
-    const nextButton = new Container();
-    const nextBg = new Graphics().circle(0, 0, 15).fill(0xdddddd).stroke({ width: 2, color: 0x999999 });
-    const nextArrow = new Graphics().poly([5, 0, -5, -8, -5, 8]).fill(0x333333);
-    nextButton.addChild(nextBg, nextArrow);
-    nextButton.position.set(120, 770);
-    nextButton.eventMode = "static";
-    nextButton.cursor = "pointer";
-    nextButton.visible = this.currentPage < totalPages - 1;
-    nextButton.on("pointerup", () => {
-      if (this.currentPage < totalPages - 1) {
-        this.currentPage++;
-        this.createItems();
-        this.updatePageButtons();
-      }
-    });
-    nextButton.on("pointerover", () => {
-      nextButton.tint = 0x999999;
-    });
-    nextButton.on("pointerdown", () => {
-      nextButton.tint = 0x999999;
-    });
-    nextButton.on("pointerout", () => {
-      nextButton.tint = 0xffffff;
-    });
-
-    this.prevButton = prevButton;
-    this.nextButton = nextButton;
-    this.container.addChild(prevButton, nextButton);
-  }
-
-  updatePageButtons() {
-    const totalPages = Math.ceil(Object.keys(this.components).length / this.itemsPerPage);
-    this.prevButton.visible = this.currentPage > 0;
-    this.nextButton.visible = this.currentPage < totalPages - 1;
-  }
-
   onDragStart(event, item) {
+    // 如果該單一使用元件已被拖出過，就不做任何動作
+    if (!item.visible) return;
+
     const sprite = new Sprite(Texture.from(item.texture));
     sprite.anchor.set(0.5);
     const scale = 80 / Math.max(sprite.width, sprite.height);
@@ -2172,7 +2140,7 @@ class ItemsList {
 
     const dragEnd = (e) => {
       if (this.draggedSprite) {
-        // 計算拖曳距離
+        // 計算拖動距離
         const dragDistance = Math.sqrt(
           Math.pow(e.clientX - this.draggedSprite.startPos.x, 2) + Math.pow(e.clientY - this.draggedSprite.startPos.y, 2)
         );
@@ -2183,11 +2151,19 @@ class ItemsList {
           y: point.y + this.dragOffset.y,
         };
 
-        // 只有當拖曳距離大於閾值時才創建物件
-        if (dragDistance > 100) {
+        // 只有當拖動距離超過閾值時才建立元件
+        if (dragDistance > 20) {
           const component = this.createComponent(item.componentType, finalPos);
           if (component) {
             Components.addChild(component);
+            // 若物件為 UTube 或 Ammeter，移除 ItemsList 上的圖案，使其無法再拖動
+            if (item.componentType === "UTube" || item.componentType === "Ammeter") {
+              // 只隱藏除了第一個元素 (itemBg) 以外的所有項目
+              for (let i = 1; i < item.children.length; i++) {
+                item.children[i].visible = false;
+              }
+              item.eventMode = "none";
+            }
           }
         }
 

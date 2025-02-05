@@ -30,6 +30,16 @@ class Game {
 
     this.inPage1 = false;
 
+    // 新增自動暫停/恢復功能
+    this.paused = false;
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        this.pauseGame();
+      } else {
+        this.resumeGame();
+      }
+    });
+
     // 創建電解實驗模組
     this.electrolysisModule = new ElectrolysisModule(this.itemCanvas);
     this.ionModule = new IonModule(this.itemCanvas);
@@ -644,7 +654,18 @@ class Game {
     this.UIContainer.addChild(drugs.container);
   }
 
+  pauseGame() {
+    this.paused = true;
+    console.log("暫停更新");
+  }
+
+  resumeGame() {
+    this.paused = false;
+    console.log("恢復更新");
+  }
+
   update(time) {
+    if (this.paused) return;
     const currentTime = Date.now();
     if (this.electrolysisModule) {
       this.electrolysisModule.update(time);
@@ -680,10 +701,15 @@ function createCheckboxBlock(text, x, y, onShow, onHide) {
   checkmark.x = -170;
   checkmark.visible = false;
 
-  checkbox.eventMode = "static";
-  checkbox.cursor = "pointer";
+  const container = new Container();
+  container.x = x;
+  container.y = y;
+  container.addChild(ionBg, ionText, checkbox, checkmark);
+
+  container.eventMode = "static";
+  container.cursor = "pointer";
   let isChecked = false;
-  checkbox.on("pointerdown", () => {
+  container.on("pointerdown", () => {
     isChecked = !isChecked;
     checkmark.visible = isChecked;
     if (isChecked) {
@@ -692,51 +718,40 @@ function createCheckboxBlock(text, x, y, onShow, onHide) {
       onHide();
     }
   });
-
-  const container = new Container();
-  container.x = x;
-  container.y = y;
-  container.addChild(ionBg, ionText, checkbox, checkmark);
-
   return container;
 }
 
 function createOptionGroup(options) {
   const optionContainers = [];
+  const width = 500;
+  const height = 100;
+  const bgHeight = 110 * options.length;
+  const yOffset = options.length === 1 ? -5 : ((options.length - 1) * height - (options.length === 3 ? 30 : 10)) / 2;
 
-  const bgHeight = 70 * options.length;
-  const yOffset = (options.length - 1) * 30; // 計算背景和選項的偏移量
-
-  // 背景
   const groupBg = new Graphics();
-  groupBg.roundRect(-165, -35 * options.length, 330, bgHeight, 20);
+  groupBg.roundRect(-width / 2, (-height / 2) * options.length, width, bgHeight, 20);
   groupBg.fill(0xffffff);
   groupBg.stroke({ color: 0x3a398d, width: 5 });
   groupBg.alpha = 0.7;
 
   options.forEach((option, index) => {
+    const yPos = -yOffset + index * height;
     const optionGraphics = new Graphics();
-    optionGraphics.rect(-160, -30, 320, 60);
+    optionGraphics.rect((-width + 10) / 2, -height / 2, width - 10, height);
     optionGraphics.fill(0xadadad);
     optionGraphics.alpha = 0;
-    optionGraphics.y = -yOffset + index * 60; // 選項按偏移量調整 Y 座標
+    optionGraphics.y = yPos;
 
     const optionText = new Text({ text: option.text, style: defaultStyle2 });
     optionText.anchor.set(0.5);
-    optionText.y = -yOffset + index * 60;
+    optionText.y = yPos;
 
     optionGraphics.eventMode = "static";
     optionGraphics.cursor = "pointer";
     optionGraphics.on("pointerup", option.action);
-    optionGraphics.on("pointerover", () => {
-      optionGraphics.alpha = 0.8;
-    });
-    optionGraphics.on("pointerout", () => {
-      optionGraphics.alpha = 0;
-    });
-    optionGraphics.on("pointerdown", () => {
-      optionGraphics.alpha = 0.8;
-    });
+    optionGraphics.on("pointerover", () => (optionGraphics.alpha = 0.8));
+    optionGraphics.on("pointerout", () => (optionGraphics.alpha = 0));
+    optionGraphics.on("pointerdown", () => (optionGraphics.alpha = 0.8));
 
     optionContainers.push(optionGraphics, optionText);
   });

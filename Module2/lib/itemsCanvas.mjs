@@ -224,10 +224,15 @@ export class ItemsCanvas {
       sceneContainer.addChild(sprite);
     }
 
+    // Add joints and assign pointerdown, but skip for beaker so it doesn't block test paper events
     sceneContainer.joints.forEach((joint) => sceneContainer.addChild(joint));
-    sceneContainer.eventMode = "static";
-    sceneContainer.cursor = "pointer";
-    sceneContainer.on("pointerdown", (event) => this.onDragStart(event, sceneContainer));
+    if (!sceneContainer.isBeaker) {
+      sceneContainer.eventMode = "static";
+      sceneContainer.cursor = "pointer";
+      sceneContainer.on("pointerdown", (event) => this.onDragStart(event, sceneContainer));
+    } else {
+      sceneContainer.eventMode = "none"; // Beaker is fixed and non-interactive
+    }
 
     sceneContainer.getGlobalJointPositions = () => sceneContainer.joints.map((joint) => sceneContainer.toGlobal(joint.position));
 
@@ -304,7 +309,7 @@ export class ItemsCanvas {
       const checkClick = setTimeout(() => {
         const currentPos = { x: event.global.x, y: event.global.y };
         const distance = Math.sqrt(Math.pow(currentPos.x - startPos.x, 2) + Math.pow(currentPos.y - startPos.y, 2));
-        if (distance < 5 && this.ionModule) {
+        if (distance < 2 && this.ionModule) {
           this.ionModule.handleBottleAnimation(target);
           return;
         }
