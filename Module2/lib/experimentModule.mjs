@@ -1,4 +1,4 @@
-import { Sprite, Texture, Text, Graphics, Container } from "./pixi.mjs";
+import { Sprite, Texture, Text, Graphics, Container, ColorMatrixFilter } from "./pixi.mjs";
 import { defaultStyle } from "./textStyle.mjs";
 import { gsap } from "../gsap-public/src/index.js";
 
@@ -84,7 +84,7 @@ export class ElectrolysisModule {
         phColor: "blue",
       },
       氯化銅: {
-        color: "blue",
+        color: "lightgreen",
         brightness: "bright",
         phColor: "green",
       },
@@ -203,8 +203,11 @@ export class ElectrolysisModule {
       blue: 0x0000ff,
       purple: 0x800080,
       white: 0xffffff,
+      transparent: 0xffffff,
+      blue2: 0x4169e1,
+      lightgreen: 0x00e0f0,
     };
-    return colorMap[colorName] || 0xffffff;
+    return colorMap[colorName];
   }
 
   // 更新燈泡亮度效果
@@ -293,11 +296,14 @@ export class ElectrolysisModule {
 
   // 更新燒杯顏色
   updateBeakerColor(color) {
-    const beaker = this.findComponentByType("燒杯.png");
+    const beaker = this.findComponentByType("燒杯");
     if (!beaker) return;
-
-    // 設置燒杯中溶液顏色
-    beaker.tint = color === "transparent" ? 0xffffff : this.colorToHex(color);
+    beaker.filters = [new ColorMatrixFilter()];
+    beaker.filters[0].brightness(1); // 重置亮度
+    beaker.tint = this.colorToHex(color);
+    if (color === "white") {
+      beaker.filters[0].brightness(2); // 稍微提高亮度使其更白
+    }
   }
 
   // 尋找特定類型的組件
@@ -718,8 +724,8 @@ export class SetElectron {
 export class ModuleSetup {
   constructor(itemCanvas) {
     this.itemCanvas = itemCanvas;
-    this.centerX = 960;
-    this.centerY = 540;
+    this.centerX = 850;
+    this.centerY = 520;
   }
 
   setupElectrolysisModule() {
@@ -730,17 +736,14 @@ export class ModuleSetup {
     // 創建所有組件並儲存引用
     const components = this.createAllComponents();
 
-    // 先設置所有組件的位置
+    // 設置所有組件的位置
     this.positionAllComponents(components);
 
     // 調整所有電線的位置和形狀
     this.adjustWirePositions(components);
 
-    // 強制進行一次全局位置更新
-    this.updateGlobalPositions(components);
-
-    // 建立所有連接並確保它們保持連接狀態
-    this.forceConnectAllComponents(components);
+    // 使所有組件不可移動
+    this.makeComponentsImmovable(components);
 
     Object.values(components).forEach((component) => {
       if (component && this.itemCanvas.electronModule) {
@@ -749,6 +752,40 @@ export class ModuleSetup {
     });
 
     return components;
+  }
+
+  makeComponentsImmovable(components) {
+    Object.values(components).forEach((component) => {
+      if (!component) return;
+
+      // 禁用所有事件交互
+      component.eventMode = "none";
+      component.cursor = "default";
+
+      // 保留連接點的視覺效果，但禁用它們的交互
+      if (component.joints) {
+        component.joints.forEach((joint) => {
+          joint.visible = true; // 保持可見
+          joint.eventMode = "none"; // 禁用事件
+        });
+      }
+    });
+  }
+
+  createComponent(imagePath, position) {
+    const component = this.itemCanvas.createSceneItem(imagePath, position);
+    // 設置組件為不可移動，但保留視覺效果
+    component.eventMode = "none";
+    component.cursor = "default";
+
+    // 確保連接點可見
+    if (component.joints) {
+      component.joints.forEach((joint) => {
+        joint.visible = true;
+      });
+    }
+
+    return component;
   }
 
   createAllComponents() {
@@ -821,98 +858,6 @@ export class ModuleSetup {
     }
   }
 
-  forceConnectAllComponents(components) {
-    // 定義預期的連接順序
-    const connections = [
-      ["leftRod", "beaker"],
-      ["wire1", "leftRod"],
-      ["wire1", "wire2"],
-      ["battery", "wire2"],
-      ["battery", "wire3"],
-      ["wire3", "bulb"],
-      ["bulb", "wire4"],
-      ["wire4", "rightRod"],
-      ["rightRod", "beaker"],
-    ];
-
-    // 強制建立所有連接
-    connections.forEach(([fromName, toName]) => {
-      const fromComp = components[fromName];
-      const toComp = components[toName];
-
-      if (!fromComp || !toComp) return;
-
-      // 獲取兩個組件的所有連接點的全局位置
-      const fromJoints = fromComp.joints.map((joint) => {
-        const globalPos = fromComp.toGlobal(joint.position);
-        return { joint, globalPos };
-      });
-
-      const toJoints = toComp.joints.map((joint) => {
-        const globalPos = toComp.toGlobal(joint.position);
-        return { joint, globalPos };
-      });
-
-      // 找到最近的一對連接點
-      let minDist = Infinity;
-      let bestPair = null;
-
-      fromJoints.forEach((from) => {
-        toJoints.forEach((to) => {
-          const dx = from.globalPos.x - to.globalPos.x;
-          const dy = from.globalPos.y - to.globalPos.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-
-          if (dist < minDist && !from.joint.connected && !to.joint.connected) {
-            minDist = dist;
-            bestPair = { from: from.joint, to: to.joint };
-          }
-        });
-      });
-
-      // 強制建立連接
-      if (bestPair) {
-        bestPair.from.connected = true;
-        bestPair.to.connected = true;
-        bestPair.from.tint = 0x00ff00;
-        bestPair.to.tint = 0x00ff00;
-
-        // 設置組件的連接組
-        if (fromComp.connectedComponent === -1 && toComp.connectedComponent === -1) {
-          const newGroup = this.itemCanvas.connectedGroups.length;
-          this.itemCanvas.connectedGroups.push(newGroup);
-          fromComp.connectedComponent = newGroup;
-          toComp.connectedComponent = newGroup;
-        } else if (fromComp.connectedComponent === -1) {
-          fromComp.connectedComponent = toComp.connectedComponent;
-        } else if (toComp.connectedComponent === -1) {
-          toComp.connectedComponent = fromComp.connectedComponent;
-        }
-      }
-    });
-
-    // 最後再次檢查所有連接
-    this.itemCanvas.recheckAllConnections();
-  }
-
-  updateGlobalPositions(components) {
-    Object.values(components).forEach((component) => {
-      if (!component || !component.joints) return;
-
-      // 更新每個組件的所有連接點的全局位置
-      component.joints.forEach((joint) => {
-        const globalPos = component.toGlobal(joint.position);
-        joint.globalX = globalPos.x;
-        joint.globalY = globalPos.y;
-      });
-
-      // 如果是電線，確保重新繪製
-      if (component.redrawWire) {
-        component.redrawWire();
-      }
-    });
-  }
-
   adjustWirePositions(components) {
     const { wire1, wire2, wire3, wire4 } = components;
 
@@ -924,8 +869,8 @@ export class ModuleSetup {
       wire1.joints[1].position.set(-275, -100); // 電池端
 
       // 從左碳棒到燈泡的電線
-      wire2.joints[0].position.set(-100, -100); // 碳棒端
-      wire2.joints[1].position.set(145, -25); // 燈泡端
+      wire2.joints[0].position.set(-105, -100); // 碳棒端
+      wire2.joints[1].position.set(150, -25); // 燈泡端
 
       // 從燈泡到右碳棒的電線
       wire3.joints[0].position.set(95, -120); // 燈泡端
@@ -940,10 +885,6 @@ export class ModuleSetup {
         if (wire.redrawWire) wire.redrawWire();
       });
     }
-  }
-
-  createComponent(imagePath, position) {
-    return this.itemCanvas.createSceneItem(imagePath, position);
   }
 }
 
@@ -1047,7 +988,7 @@ export class IonModule {
     if (!this.cachedBeaker) return;
 
     const colorMap = {
-      blue: 0x0000ff,
+      blue: 0x4169e1,
       white: 0xffffff,
       transparent: 0xffffff,
     };
@@ -1353,7 +1294,7 @@ export class IonModule {
           if (this.currentSolution === "硫酸銅") {
             // 更新燒杯顏色
             if (this.cachedBeaker) {
-              this.cachedBeaker.tint = 0x0000ff;
+              this.cachedBeaker.tint = 0x4169e1;
             }
           }
 
@@ -1414,8 +1355,8 @@ export function showStatusText(message, itemCanvas) {
 
   // 將文字定位在螢幕中央
   statusText.anchor.set(0.5);
-  statusText.x = 960; // 1920 的一半
-  statusText.y = 100; // 1080 的一半
+  statusText.x = 1000; // 1920 的一半
+  statusText.y = 70; // 1080 的一半
 
   // 加入容器中
   itemCanvas.container.addChild(statusText);
@@ -1425,5 +1366,5 @@ export function showStatusText(message, itemCanvas) {
     if (statusText) {
       itemCanvas.container.removeChild(statusText);
     }
-  }, 500);
+  }, 1000);
 }

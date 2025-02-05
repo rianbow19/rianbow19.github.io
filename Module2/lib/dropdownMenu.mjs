@@ -98,7 +98,7 @@ export class DropdownMenu {
         itemBg.fill(backgroundColor);
       });
 
-      itemContainer.on("pointerdown", () => {
+      itemContainer.on("pointerup", () => {
         this.selectItem(item);
         buttonText.text = this.prefix ? `${this.prefix}：${item}` : item;
         // 移除 arrow.rotation = 0;

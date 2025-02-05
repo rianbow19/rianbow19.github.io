@@ -127,6 +127,8 @@ export const playSound = async (soundKey) => {
       ? volume * 0.9
       : soundKey === "timeUp"
       ? volume * 0.6
+      : soundKey === "winRank"
+      ? volume * 0.45
       : volume;
   return playBuffer(buffer, gainValue);
 };

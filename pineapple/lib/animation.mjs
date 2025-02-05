@@ -430,29 +430,38 @@ export class AnimationManager {
     this.stopWaveAnimation();
 
     pineappleArray.forEach((pineapple, i) => {
-      if (!pineapple.originalY) {
-        pineapple.originalY = pineapple.y; //記錄初始 Y 位置
-      } else {
-        pineapple.y = pineapple.originalY;
+      // 確保每個鳳梨只記錄一次初始位置
+      if (!pineapple.hasOwnProperty("originalY")) {
+        pineapple.originalY = 780; // 使用固定的初始Y位置
       }
-      //每個鳳梨在 Y 軸上下跳動
+
+      // 先將鳳梨設置到初始位置
+      pineapple.y = pineapple.originalY;
+
+      // 創建波浪動畫
       const tl = gsap.to(pineapple, {
-        y: pineapple.y - 30,
+        y: pineapple.originalY - 30, // 使用相對於originalY的位移
         duration: 0.5,
         ease: "power1.inOut",
-        repeat: -1, //無限重複
-        yoyo: true, //來回
-        delay: i * 0.1, //每個鳳梨延遲 0.1 秒
+        repeat: -1,
+        yoyo: true,
+        delay: i * 0.1,
       });
+
       this.game.waveTimelines.push(tl);
     });
   }
 
+  // 停止波浪動畫的方法也需要確保鳳梨回到正確位置
   stopWaveAnimation() {
-    this.game.waveTimelines.forEach((tl) => {
-      tl.kill();
+    this.game.waveTimelines.forEach((timeline) => {
+      const target = timeline.targets()[0];
+      if (target && target.hasOwnProperty("originalY")) {
+        target.y = target.originalY;
+      }
+      timeline.kill();
     });
-    this.game.waveTimelines = [];
+    this.game.waveTimelines.length = 0;
   }
 
   async fadeElement(element, newText = null) {

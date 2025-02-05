@@ -1,4 +1,4 @@
-import { Container, Sprite, Graphics, Texture } from "./pixi.mjs";
+import { Container, Sprite, Graphics, Texture, ColorMatrixFilter } from "./pixi.mjs";
 
 export class ItemsCanvas {
   constructor() {
@@ -6,7 +6,6 @@ export class ItemsCanvas {
     this.dragTarget = null;
     this.dragStartPos = null;
     this.rotationCenter = null;
-    this.draggingJoint = null;
     this.beakerPlaced = false;
 
     // 創建拖拽區域
@@ -25,11 +24,7 @@ export class ItemsCanvas {
     this.dragArea.on("pointerup", this.onDragEnd.bind(this));
     this.dragArea.on("pointerupoutside", this.onDragEnd.bind(this));
 
-    // 組件相關
-    this.connectedGroups = [];
-    this.snapDistance = 30;
-
-    // 定義不同物品的連結點配置
+    // 定義不同物品的連結點配置 (只用於視覺顯示)
     this.jointConfigs = {
       "電池.png": [
         { x: 1, y: 0.5 }, // 右側中間
@@ -85,6 +80,9 @@ export class ItemsCanvas {
   setElectron(electron) {
     this.electron = electron;
   }
+  setElectrolysisModule(electrolysisModule) {
+    this.electrolysisModule = electrolysisModule;
+  }
 
   createSceneItem(imagePath, position) {
     const sceneContainer = new Container();
@@ -94,9 +92,7 @@ export class ItemsCanvas {
     sceneContainer.type = imagePath.replace(".png", "");
 
     if (this.itemsList) {
-      requestAnimationFrame(() => {
-        this.itemsList.updateRestrictedItems();
-      });
+      this.itemsList.updateRestrictedItems();
     }
 
     // 新增離子陣列到容器
@@ -112,7 +108,7 @@ export class ItemsCanvas {
 
       sceneContainer.joints = [];
       for (let i = 0; i < 2; i++) {
-        const joint = new Graphics().circle(0, 0, 20).fill({ color: 0x00ff00, alpha: 0 }).stroke({ color: 0xadadad, width: 6, alpha: 0.3 });
+        const joint = new Graphics().circle(0, 0, 21).fill({ color: 0x00ff00, alpha: 0.5 }).stroke({ color: 0x00ff00, width: 2 });
 
         joint.eventMode = "static";
         joint.cursor = "pointer";
@@ -172,7 +168,7 @@ export class ItemsCanvas {
 
       const jointConfig = this.jointConfigs[imagePath] || [];
       sceneContainer.joints = jointConfig.map((config) => {
-        const joint = new Graphics().circle(0, 0, 20).fill({ color: 0x00ff00, alpha: 0 }).stroke({ color: 0xadadad, width: 6, alpha: 0.3 });
+        const joint = new Graphics().circle(0, 0, 21).fill({ color: 0x00ff00, alpha: 0.5 }).stroke({ color: 0x00ff00, width: 2 });
 
         joint.position.set((config.x - 0.5) * sprite.width, (config.y - 0.5) * sprite.height);
         joint.connected = false;
@@ -199,6 +195,16 @@ export class ItemsCanvas {
         sceneContainer.joints.forEach((joint) => {
           joint.visible = false;
         });
+
+        if (this.electrolysisModule.selectedSolution) {
+          const solutionProps = this.electrolysisModule.solutionProperties[this.electrolysisModule.selectedSolution];
+          if (solutionProps.color === "white") {
+            sceneContainer.filters = [new ColorMatrixFilter()];
+            sceneContainer.filters[0].brightness(2); // 稍微提高亮度使其更白
+          } else {
+            sceneContainer.tint = solutionProps.color === "transparent" ? 0xffffff : this.electrolysisModule.colorToHex(solutionProps.color);
+          }
+        }
         sceneContainer.isBeaker = true;
       }
       if (imagePath === "藥品罐.png") {
@@ -282,35 +288,28 @@ export class ItemsCanvas {
     return ion;
   }
 
-  setRandomPosition(ion, width, height) {
+  setRandomPosition(ion) {
     ion.x = Math.random() * 260 - 100;
     ion.y = Math.random() * 230 - 70;
   }
 
-  onDragStart(event, target, joint = null) {
+  onDragStart(event, target) {
     if (!event || !target) return;
     if (target.isBeaker && this.beakerPlaced) {
       return;
     }
 
     if (target.type === "藥品罐") {
-      // 用一個短暫的延遲來區分點擊和拖拽
       const startPos = { x: event.global.x, y: event.global.y };
-
       const checkClick = setTimeout(() => {
-        // 如果位置沒有明顯變化，視為點擊
         const currentPos = { x: event.global.x, y: event.global.y };
         const distance = Math.sqrt(Math.pow(currentPos.x - startPos.x, 2) + Math.pow(currentPos.y - startPos.y, 2));
-
         if (distance < 5 && this.ionModule) {
-          // 5像素的閾值
-          console.log("Triggering bottle animation");
           this.ionModule.handleBottleAnimation(target);
-          return; // 不執行拖拽
+          return;
         }
-      }, 100); // 100ms 的判斷時間
+      }, 100);
 
-      // 如果開始拖動，清除點擊檢查
       const clearCheck = () => {
         clearTimeout(checkClick);
         target.off("pointermove", clearCheck);
@@ -318,27 +317,15 @@ export class ItemsCanvas {
       target.on("pointermove", clearCheck);
     }
 
-    if (joint?.isJoint) {
-      this.dragTarget = target;
-      this.draggingJoint = joint;
-    } else {
-      this.dragTarget = target;
-      this.draggingJoint = null;
-    }
-
+    this.dragTarget = target;
     this.dragStartPos = {
       x: event.global.x || 0,
       y: event.global.y || 0,
     };
 
-    this.rotationCenter = {
-      rotation: target.rotation || 0,
-    };
-
     this.dragArea.visible = true;
     target.alpha = 0.5;
 
-    // 記錄物件與滑鼠位置的偏移
     const globalPos = this.dragTarget.toGlobal({ x: 0, y: 0 });
     this.dragTarget.offset = {
       x: globalPos.x - event.global.x,
@@ -348,183 +335,31 @@ export class ItemsCanvas {
 
   onDragMove(event) {
     if (!this.dragTarget || !event?.global) return;
-
-    if (this.dragTarget && this.draggingJoint) {
-      if (this.draggingJoint.isJoint) {
-        // 如果是拖拽連接點，執行旋轉邏輯
-        this.handleJointDrag(event);
-      } else {
-        // 否則執行普通拖拽
-        this.handleNormalDrag(event);
-      }
-    } else {
-      // 如果沒有拖拽連接點，執行普通拖拽
-      this.handleNormalDrag(event);
-    }
-  }
-
-  handleJointDrag(event) {
-    if (!this.dragTarget || !this.draggingJoint) return;
-
-    if (this.dragTarget.redrawWire) {
-      // 電線的拉伸邏輯
-      const localPos = this.dragTarget.toLocal(event.global);
-      this.draggingJoint.position.set(localPos.x, localPos.y);
-      this.dragTarget.redrawWire();
-      return;
-    }
-
-    // 取得另一個joint作為旋轉軸心
-    const pivotJoint = this.dragTarget.joints.find((j) => j !== this.draggingJoint);
-    const pivotGlobal = this.dragTarget.toGlobal(pivotJoint.position);
-
-    // 計算角度差
-    const startAngle = Math.atan2(this.dragStartPos.y - pivotGlobal.y, this.dragStartPos.x - pivotGlobal.x);
-    const currentAngle = Math.atan2(event.global.y - pivotGlobal.y, event.global.x - pivotGlobal.x);
-    const rotationDiff = currentAngle - startAngle;
-
-    // 計算新位置
-    const currentPos = { x: this.dragTarget.x, y: this.dragTarget.y };
-    const newPos = this.rotateAroundPoint(currentPos, this.dragTarget.parent.toLocal(pivotGlobal), rotationDiff);
-
-    // 更新位置和旋轉
-    this.dragTarget.position.set(newPos.x, newPos.y);
-    this.dragTarget.rotation = this.rotationCenter.rotation + rotationDiff;
-
-    // 更新起始狀態
-    this.dragStartPos = { x: event.global.x, y: event.global.y };
-    this.rotationCenter.rotation = this.dragTarget.rotation;
-  }
-
-  handleNormalDrag(event) {
-    if (!this.dragTarget || !this.dragTarget.parent) return;
-
-    const oldPos = {
-      x: this.dragTarget.x,
-      y: this.dragTarget.y,
-    };
-
     const newPos = this.dragTarget.parent.toLocal(event.global);
     this.dragTarget.position.set(newPos.x, newPos.y);
-
-    if (this.dragTarget.connectedComponent !== -1) {
-      this.components.children.forEach((element) => {
-        if (element !== this.dragTarget && element.connectedComponent === this.dragTarget.connectedComponent) {
-          const dx = this.dragTarget.x - oldPos.x;
-          const dy = this.dragTarget.y - oldPos.y;
-          element.x += dx;
-          element.y += dy;
-        }
-      });
-    }
-  }
-
-  rotateAroundPoint(point, center, angle) {
-    if (!point || !center) return null;
-    const sin = Math.sin(angle);
-    const cos = Math.cos(angle);
-
-    const translatedX = point.x - center.x;
-    const translatedY = point.y - center.y;
-
-    return {
-      x: translatedX * cos - translatedY * sin + center.x,
-      y: translatedX * sin + translatedY * cos + center.y,
-    };
   }
 
   onDragEnd() {
     if (this.dragTarget) {
-      this.recheckAllConnections();
       this.dragArea.visible = false;
       this.dragTarget.alpha = 1;
       this.dragTarget = null;
-      this.draggingJoint = null;
       this.dragStartPos = null;
-      this.rotationCenter = null;
     }
-  }
-
-  recheckAllConnections() {
-    // 重置所有連接狀態
-    this.components.children.forEach((component) => {
-      component.connectedComponent = -1;
-      component.joints.forEach((joint) => {
-        joint.connected = false;
-        joint.tint = 0xffffff;
-      });
-    });
-
-    // 檢查所有可能的連接
-    for (let i = 0; i < this.components.children.length; i++) {
-      const component1 = this.components.children[i];
-      const joints1 = component1.getGlobalJointPositions();
-
-      for (let j = i + 1; j < this.components.children.length; j++) {
-        const component2 = this.components.children[j];
-        const joints2 = component2.getGlobalJointPositions();
-
-        joints1.forEach((joint1Pos, idx1) => {
-          joints2.forEach((joint2Pos, idx2) => {
-            if (this.areJointsOverlapping(joint1Pos, joint2Pos)) {
-              component1.joints[idx1].connected = true;
-              component2.joints[idx2].connected = true;
-              component1.joints[idx1].tint = 0x00ff00;
-              component2.joints[idx2].tint = 0x00ff00;
-
-              if (component1.connectedComponent === -1 && component2.connectedComponent === -1) {
-                const newGroup = this.connectedGroups.length;
-                this.connectedGroups.push(newGroup);
-                component1.connectedComponent = newGroup;
-                component2.connectedComponent = newGroup;
-              } else if (component1.connectedComponent === -1) {
-                component1.connectedComponent = component2.connectedComponent;
-              } else if (component2.connectedComponent === -1) {
-                component2.connectedComponent = component1.connectedComponent;
-              } else if (component1.connectedComponent !== component2.connectedComponent) {
-                const oldGroup = component2.connectedComponent;
-                this.components.children.forEach((comp) => {
-                  if (comp.connectedComponent === oldGroup) {
-                    comp.connectedComponent = component1.connectedComponent;
-                  }
-                });
-              }
-            }
-          });
-        });
-      }
-    }
-  }
-
-  calculateMidpoint(pos1, pos2) {
-    return {
-      x: (pos1.x + pos2.x) / 2,
-      y: (pos1.y + pos2.y) / 2,
-    };
-  }
-
-  areJointsOverlapping(joint1Pos, joint2Pos) {
-    const distance = Math.sqrt(Math.pow(joint1Pos.x - joint2Pos.x, 2) + Math.pow(joint1Pos.y - joint2Pos.y, 2));
-    return distance < this.snapDistance;
   }
 
   reset() {
     this.components.removeChildren();
-    this.connectedGroups = [];
     this.dragTarget = null;
     this.dragArea.visible = false;
-    this.draggingJoint = null;
     this.dragStartPos = null;
-    this.rotationCenter = null;
     this.beakerPlaced = false;
 
-    // 重置電子模組
     if (this.electron) {
       this.electron.reset();
     }
 
     if (this.itemsList) {
-      // 使用 ItemsList 自己保存的初始索引進行重置
       Object.keys(this.itemsList.restrictedItems).forEach((key) => {
         this.itemsList.restrictedItems[key] = false;
       });

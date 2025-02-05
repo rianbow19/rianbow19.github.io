@@ -5763,7 +5763,7 @@ class FederatedMouseEvent extends FederatedEvent {
    * @param _relatedTargetArg
    * @deprecated since 7.0.0
    */
-  // eslint-disable-next-line max-params
+   
   initMouseEvent(_typeArg, _canBubbleArg, _cancelableArg, _viewArg, _detailArg, _screenXArg, _screenYArg, _clientXArg, _clientYArg, _ctrlKeyArg, _altKeyArg, _shiftKeyArg, _metaKeyArg, _buttonArg, _relatedTargetArg) {
     throw new Error("Method not implemented.");
   }
@@ -17161,7 +17161,7 @@ class GraphicsPath {
    * This can include rotations, scaling, and translations.
    * @returns The instance of the current object for chaining further drawing commands.
    */
-  // eslint-disable-next-line max-len
+   
   star(x, y, points, radius, innerRadius, rotation, transform) {
     innerRadius = innerRadius || radius / 2;
     const startAngle = -1 * Math.PI / 2 + rotation;
@@ -20483,7 +20483,7 @@ class BitmapFontManagerClass {
   measureText(text, style) {
     return this.getLayout(text, style);
   }
-  // eslint-disable-next-line max-len
+   
   install(...args) {
     var _a, _b, _c, _d;
     let options = args[0];
@@ -25612,7 +25612,7 @@ const detectAvif = {
     priority: 1
   },
   test: async () => testImageFormat(
-    // eslint-disable-next-line max-len
+     
     "data:image/avif;base64,AAAAIGZ0eXBhdmlmAAAAAGF2aWZtaWYxbWlhZk1BMUIAAADybWV0YQAAAAAAAAAoaGRscgAAAAAAAAAAcGljdAAAAAAAAAAAAAAAAGxpYmF2aWYAAAAADnBpdG0AAAAAAAEAAAAeaWxvYwAAAABEAAABAAEAAAABAAABGgAAAB0AAAAoaWluZgAAAAAAAQAAABppbmZlAgAAAAABAABhdjAxQ29sb3IAAAAAamlwcnAAAABLaXBjbwAAABRpc3BlAAAAAAAAAAIAAAACAAAAEHBpeGkAAAAAAwgICAAAAAxhdjFDgQ0MAAAAABNjb2xybmNseAACAAIAAYAAAAAXaXBtYQAAAAAAAAABAAEEAQKDBAAAACVtZGF0EgAKCBgANogQEAwgMg8f8D///8WfhwB8+ErK42A="
   ),
   add: async (formats) => [...formats, "avif"],
@@ -33333,7 +33333,7 @@ const _GlContextSystem = class _GlContextSystem {
       floatTextureLinear: gl.getExtension("OES_texture_float_linear"),
       s3tc: gl.getExtension("WEBGL_compressed_texture_s3tc"),
       s3tc_sRGB: gl.getExtension("WEBGL_compressed_texture_s3tc_srgb"),
-      // eslint-disable-line camelcase
+       
       etc: gl.getExtension("WEBGL_compressed_texture_etc"),
       etc1: gl.getExtension("WEBGL_compressed_texture_etc1"),
       pvrtc: gl.getExtension("WEBGL_compressed_texture_pvrtc") || gl.getExtension("WEBKIT_WEBGL_compressed_texture_pvrtc"),
@@ -40004,7 +40004,7 @@ class GpuRenderTargetAdaptor {
         try {
           context.configure({
             device: this._renderer.gpu.device,
-            // eslint-disable-next-line max-len
+             
             usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.COPY_SRC,
             format: "bgra8unorm",
             alphaMode
@@ -40662,7 +40662,7 @@ class GpuTextureSystem {
     const context = canvas.getContext("webgpu");
     context.configure({
       device: renderer.gpu.device,
-      // eslint-disable-next-line max-len
+       
       usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.COPY_SRC,
       format: navigator.gpu.getPreferredCanvasFormat(),
       alphaMode: "premultiplied"

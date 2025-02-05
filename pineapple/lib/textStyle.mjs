@@ -38,9 +38,10 @@ const infoStyle = new TextStyle({
   fill: "#3C3C3C",
   stroke: { color: "#F0FFF0", width: 5, join: "round" },
   wordWrap: true,
-  wordWrapWidth: 1200,
+  wordWrapWidth: 1220,
   breakWords: true,
   align: "left",
+  lineHeight: 70,
 });
 
 const infoStyle2 = new TextStyle({
@@ -53,7 +54,7 @@ const infoStyle2 = new TextStyle({
 
 const infoStyle3 = new TextStyle({
   fontFamily: "Microsoft JhengHei, PingFang TC, sans-serif",
-  fontSize: 36,
+  fontSize: 30,
   fontWeight: "bold",
   fill: "#F0FFF0",
   stroke: { color: "#3C3C3C", width: 10, join: "round" },
