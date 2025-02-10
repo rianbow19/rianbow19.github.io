@@ -13,6 +13,19 @@ export const defaultStyle2 = new TextStyle({
   fill: "#000000",
 });
 
+export const defaultStyle3 = new TextStyle({
+  fontFamily: "Microsoft JhengHei, PingFang TC, sans-serif",
+  fontSize: 22,
+  fill: "#333333",
+});
+
+export const ionStyle = new TextStyle({
+  fontFamily: "Microsoft JhengHei, PingFang TC, sans-serif",
+  fontWeight: "bold",
+  fontSize: 16,
+  fill: "#ffffff",
+});
+
 export const listStyle = new TextStyle({
   fontFamily: "Microsoft JhengHei, PingFang TC, sans-serif",
   fontSize: 18,
@@ -22,8 +35,8 @@ export const listStyle = new TextStyle({
 
 export const scoreStyle = new TextStyle({
   fontFamily: "Microsoft JhengHei, PingFang TC, sans-serif",
-  fontSize: 60,
+  fontSize: 40,
   fontWeight: "bold",
   fill: "#ffffff",
-  stroke: { color: "#000000", width: 15, join: "round" },
+  stroke: { color: "#000000", width: 5, join: "round" },
 });

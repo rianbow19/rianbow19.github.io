@@ -1,7 +1,7 @@
 import { ColorMatrixFilter, Container, Graphics, Sprite, Text, Texture } from "./pixi.mjs";
-import { listStyle } from "./textStyle.mjs";
+import { defaultStyle, defaultStyle3, ionStyle, listStyle } from "./textStyle.mjs";
 import { gsap } from "../gsap-public/src/index.js";
-export { Module2 };
+export { Module2, Module4 };
 
 let dragTarget = null;
 let dragStartPos = null;
@@ -228,34 +228,10 @@ function recheckAllConnections() {
 
   if (hasChanged) {
     // 停止動畫
-    // Find the Module2 instance from the Components container
     const module2Instance = Module2.getInstance();
     if (module2Instance) {
-      module2Instance.ionAnimation.stop();
-      module2Instance.electronAnimation.stop();
-      module2Instance.isSuccess = false;
-      module2Instance.metalStripAnim.stop();
+      module2Instance.stopAllAnimations();
     }
-
-    // 重置檢流計
-    const ammeter = Components.children.find((c) => c.type === "Ammeter");
-    if (ammeter) {
-      const pin = ammeter.children.find((child) => child instanceof Graphics);
-      if (pin) {
-        pin.rotation = 0;
-        gsap.killTweensOf(pin);
-      }
-    }
-
-    // 隱藏所有燈泡的光效果
-    Components.children
-      .filter((c) => c.type === "LightBulb")
-      .forEach((bulb) => {
-        const lightEffect = bulb.children.find((child) => child.name === "lightEffect");
-        if (lightEffect) {
-          bulb.removeChild(lightEffect);
-        }
-      });
   }
 
   // 在檢查完所有連接後呼叫印出函數
@@ -299,29 +275,30 @@ class Module2 {
     this.isSuccess = false;
 
     // 新增磅秤實例
-    this.weight = new Weight();
-    this.container.addChild(this.weight.container);
-    this.weight.container.position.set(1650, 800);
+    this.container.addChild(weight.container);
+    weight.container.position.set(1650, 800);
 
     // 創建主要容器
     Components.sortableChildren = true;
     this.container.addChild(DRAG_AREA, Components, AllJoints);
 
+    const module2Components = {
+      U型管: { texture: "U型管.png", type: "UTube" },
+      檢流計: { texture: "檢流計.png", type: "Ammeter" },
+      電線: { texture: "電線.png", type: "Wire" },
+      燈泡: { texture: "燈泡.png", type: "LightBulb" },
+      電池: { texture: "電池.png", type: "Battery" },
+      迴紋針: { texture: "迴紋針.png", type: "Clip" },
+      棉花: { texture: "棉花.png", type: "Cotton" },
+    };
+
     // 創建並定位ItemsList
-    this.itemsList = new ItemsList(Components);
+    this.itemsList = new ItemsList(Object.keys(module2Components));
     this.container.addChild(this.itemsList.container);
     this.itemsList.container.position.set(20, 80);
 
-    // 設置 ItemsList 的引用
-    this.itemsList.setModule2(this);
-
-    this.ionAnimation = new IonAnimation(this);
-    this.container.addChild(this.ionAnimation.container);
-
-    this.electronAnimation = new ElectronAnimation(this);
-    this.container.addChild(this.electronAnimation.container);
-
-    this.metalStripAnim = new MetalStripAnimation();
+    this.container.addChild(ionAnimation.container);
+    this.container.addChild(electronAnimation.container);
 
     this.initializeScene();
   }
@@ -346,9 +323,9 @@ class Module2 {
     // 清除所有組件
     Components.removeChildren();
     AllJoints.removeChildren();
-    this.ionAnimation.stop();
-    this.electronAnimation.stop();
-    this.metalStripAnim.reset();
+    ionAnimation.stop();
+    electronAnimation.stop();
+    metalStripAnim.reset();
     this.itemsList.reset();
     this.isSuccess = false;
     // 重新初始化場景
@@ -358,18 +335,18 @@ class Module2 {
   toggleIonDisplay(show) {
     this.isIonCheck = show;
     if (show && this.isSuccess) {
-      this.ionAnimation.start();
+      ionAnimation.start();
     } else {
-      this.ionAnimation.stop();
+      ionAnimation.stop();
     }
   }
 
   toggleElectronDisplay(show) {
     this.isEleCheck = show;
     if (show && this.isSuccess) {
-      this.electronAnimation.start();
+      electronAnimation.start();
     } else {
-      this.electronAnimation.stop();
+      electronAnimation.stop();
     }
   }
 
@@ -407,7 +384,33 @@ class Module2 {
     if (this.selectedBeaker) {
       this.selectedBeaker.setSolution(solution);
       this.selectedBeaker = null;
+      this.stopAllAnimations();
     }
+  }
+
+  stopAllAnimations() {
+    this.isSuccess = false;
+    ionAnimation.stop();
+    electronAnimation.stop();
+    metalStripAnim.stop();
+    // 重置檢流計
+    const ammeter = Components.children.find((c) => c.type === "Ammeter");
+    if (ammeter) {
+      const pin = ammeter.children.find((child) => child instanceof Graphics);
+      if (pin) {
+        pin.rotation = 0;
+        gsap.killTweensOf(pin);
+      }
+    }
+    // 隱藏所有燈泡的光效果
+    Components.children
+      .filter((c) => c.type === "LightBulb")
+      .forEach((bulb) => {
+        const lightEffect = bulb.children.find((child) => child.name === "lightEffect");
+        if (lightEffect) {
+          bulb.removeChild(lightEffect);
+        }
+      });
   }
 
   createBeaker() {
@@ -676,11 +679,11 @@ class Module2 {
     });
 
     // 啟動動畫
-    if (this.isIonCheck && !this.ionAnimation.isAnimating) {
-      this.ionAnimation.start();
+    if (this.isIonCheck && !ionAnimation.isAnimating) {
+      ionAnimation.start();
     }
-    if (this.isEleCheck && !this.electronAnimation.isAnimating) {
-      this.electronAnimation.start();
+    if (this.isEleCheck && !electronAnimation.isAnimating) {
+      electronAnimation.start();
     }
 
     return { success: true, message: "組裝成功！" };
@@ -718,10 +721,7 @@ class Module2 {
     // 按鈕文字
     const buttonText = new Text({
       text: "DEBUG",
-      style: {
-        fontSize: 18,
-        fill: 0xffffff,
-      },
+      style: listStyle,
     });
     buttonText.anchor.set(0.5);
 
@@ -843,7 +843,585 @@ class Module2 {
   }
 
   update(time) {
-    this.weight.checkWeight();
+    weight.checkWeight();
+  }
+}
+
+class Module4 {
+  static currentInstance = null;
+  constructor() {
+    Module4.currentInstance = this;
+    this.container = new Container();
+    this.selectedBeaker = null;
+    this.isSuccess = false;
+
+    // 創建主要容器
+    Components.sortableChildren = true;
+    this.container.addChild(DRAG_AREA, Components, AllJoints);
+
+    const module4Components = {
+      電線: { texture: "電線.png", type: "Wire" },
+      燈泡: { texture: "燈泡.png", type: "LightBulb" },
+      電池: { texture: "電池.png", type: "Battery" },
+      燒杯: { texture: "燒杯.png", type: "Beaker" },
+      碳棒: { texture: "碳棒.png", type: "CarbonRod" },
+      鋅片: { texture: "鋅片.png", type: "ZincStrip" },
+    };
+
+    // 創建並定位ItemsList
+    this.itemsList = new ItemsList(Object.keys(module4Components));
+    this.container.addChild(this.itemsList.container);
+    this.itemsList.container.position.set(20, 80);
+    // 設置 ItemsList 的引用
+    this.itemsList.setModule2(this);
+
+    this.container.addChild(ionAnimation.container);
+    this.container.addChild(electronAnimation.container);
+
+    this.initializeScene();
+  }
+
+  static getInstance() {
+    return Module2.currentInstance;
+  }
+
+  // 新增初始化場景方法
+  initializeScene() {
+    this.createZincStrip();
+    this.createCopperStrip();
+    this.createBeaker();
+    this.bindBeakerEvent();
+    this.bindBeakerEvents();
+    this.bindUTubeEvent();
+    this.setupDebugButton();
+  }
+
+  // 重置方法
+  reset() {
+    // 清除所有組件
+    Components.removeChildren();
+    AllJoints.removeChildren();
+    ionAnimation.stop();
+    electronAnimation.stop();
+    metalStripAnim.reset();
+    this.itemsList.reset();
+    this.isSuccess = false;
+    // 重新初始化場景
+    this.initializeScene();
+  }
+
+  toggleIonDisplay(show) {
+    this.isIonCheck = show;
+    if (show && this.isSuccess) {
+      ionAnimation.start();
+    } else {
+      ionAnimation.stop();
+    }
+  }
+
+  toggleElectronDisplay(show) {
+    this.isEleCheck = show;
+    if (show && this.isSuccess) {
+      electronAnimation.start();
+    } else {
+      electronAnimation.stop();
+    }
+  }
+
+  // 新增綁定燒杯事件的方法
+  bindBeakerEvent(beaker) {
+    if (beaker && beaker instanceof Beaker) {
+      // 添加類型檢查
+      beaker.eventMode = "static";
+      beaker.cursor = "pointer";
+      beaker.on("pointerdown", () => {
+        this.selectedBeaker = beaker;
+      });
+    }
+  }
+
+  bindUTubeEvent(utube) {
+    if (utube && utube instanceof UTube) {
+      utube.eventMode = "static";
+      utube.cursor = "pointer";
+      utube.on("pointerdown", () => {
+        this.selectedBeaker = utube;
+      });
+    }
+  }
+
+  // 修改原有的批量綁定方法
+  bindBeakerEvents() {
+    if (this.beaker) {
+      this.beaker.forEach((beaker) => this.bindBeakerEvent(beaker));
+    }
+  }
+
+  // 處理溶液選擇
+  handleSolutionSelect(solution) {
+    if (this.selectedBeaker) {
+      this.selectedBeaker.setSolution(solution);
+      this.selectedBeaker = null;
+      this.stopAllAnimations();
+    }
+  }
+
+  stopAllAnimations() {
+    this.isSuccess = false;
+    ionAnimation.stop();
+    electronAnimation.stop();
+    metalStripAnim.stop();
+    // 重置檢流計
+    const ammeter = Components.children.find((c) => c.type === "Ammeter");
+    if (ammeter) {
+      const pin = ammeter.children.find((child) => child instanceof Graphics);
+      if (pin) {
+        pin.rotation = 0;
+        gsap.killTweensOf(pin);
+      }
+    }
+    // 隱藏所有燈泡的光效果
+    Components.children
+      .filter((c) => c.type === "LightBulb")
+      .forEach((bulb) => {
+        const lightEffect = bulb.children.find((child) => child.name === "lightEffect");
+        if (lightEffect) {
+          bulb.removeChild(lightEffect);
+        }
+      });
+  }
+
+  createBeaker() {
+    this.beaker = [];
+    for (let i = 0; i < 2; i++) {
+      this.beaker[i] = new Beaker();
+      this.beaker[i].position.set(700 + i * 340, 780);
+      Components.addChild(this.beaker[i]);
+    }
+  }
+  createZincStrip() {
+    const zincStrip = new ZincStrip();
+    zincStrip.position.set(650, 660);
+    Components.addChild(zincStrip);
+  }
+  createCopperStrip() {
+    const copperStrip = new CopperStrip();
+    copperStrip.position.set(1130, 660);
+    Components.addChild(copperStrip);
+  }
+
+  // 新增檢查電路組裝的方法
+  validateCircuitAssembly() {
+    // Helper function: 根據電路路徑點，找出連結在電路上的所有元件
+    function addCircuitComponents(circuitPoints, circuitComponents) {
+      Components.children.forEach((comp) => {
+        if (comp.joints) {
+          comp.joints.forEach((joint) => {
+            const globalJointPos = comp.toGlobal(joint.position);
+            if (
+              circuitPoints.some(
+                (circuitPoint) => Math.abs(circuitPoint.x - globalJointPos.x) < 10 && Math.abs(circuitPoint.y - globalJointPos.y) < 10
+              )
+            ) {
+              circuitComponents.add(comp);
+            }
+          });
+        }
+      });
+    }
+
+    // Helper function: 深度遍歷連結的元件，組成一個電路
+    function traverseCircuit(component, circuit) {
+      if (circuit.components.has(component)) return;
+      circuit.components.add(component);
+      if (component.type === "Battery") circuit.batteryCount++;
+      if (component.type === "LightBulb") circuit.lightBulbs.push(component);
+      component.joints.forEach((joint) => {
+        if (joint.connectedTo) {
+          traverseCircuit(joint.connectedTo.parent, circuit);
+        }
+      });
+    }
+
+    const requiredComponents = {
+      ZincStrip: 1,
+      CopperStrip: 1,
+      UTube: 1,
+      Ammeter: 1,
+      Beaker: 2,
+      Wire: 2,
+    };
+
+    const typeToName = {
+      ZincStrip: "鋅片",
+      CopperStrip: "銅片",
+      UTube: "U型管",
+      Ammeter: "檢流計",
+      Beaker: "燒杯",
+      Wire: "電線",
+      LightBulb: "燈泡",
+      Battery: "電池",
+      Clip: "迴紋針",
+      Cotton: "棉花",
+    };
+
+    const allComponents = Components.children;
+    const componentCounts = {};
+
+    // 計算各類元件數量
+    allComponents.forEach((component) => {
+      componentCounts[component.type] = (componentCounts[component.type] || 0) + 1;
+    });
+    // 電線數量包含 Wire 與 Clip
+    const wireLikeComponents = allComponents.filter((c) => c.type === "Wire" || c.type === "Clip");
+    componentCounts["Wire"] = wireLikeComponents.length;
+
+    // 驗證必需元件是否齊全
+    for (const [type, count] of Object.entries(requiredComponents)) {
+      if (!componentCounts[type] || componentCounts[type] < count) {
+        return { success: false, message: "不對喔！再想想看，有哪些組件還沒有放置呢？" };
+      }
+    }
+
+    // 驗證重要組件的連接
+    const requiredConnections = [
+      { component: "ZincStrip", connections: ["Wire", "Beaker"] },
+      { component: "CopperStrip", connections: ["Wire", "Beaker"] },
+      { component: "UTube", connections: ["Beaker", "Beaker"] },
+      { component: "Ammeter", connections: ["Wire", "Wire"] },
+    ];
+
+    for (const req of requiredConnections) {
+      const comp = allComponents.find((c) => c.type === req.component);
+      if (!comp) continue;
+
+      if (req.component === "Ammeter") {
+        const wireConnections = comp.joints.filter((j) => j.connectedTo && j.connectedTo.parent.type === "Wire").length;
+        if (wireConnections !== 2) {
+          return { success: false, message: "檢流計必須兩個連結點都連接到電線" };
+        }
+        continue;
+      }
+
+      if (req.component === "UTube") {
+        const beakerConnections = comp.joints.filter((j) => j.connectedTo && j.connectedTo.parent.type === "Beaker").length;
+        if (beakerConnections !== 2) {
+          return { success: false, message: "U型管必須兩個連結點都連接到燒杯" };
+        }
+        continue;
+      }
+
+      const compConnections = comp.joints.map((j) => (j.connectedTo ? j.connectedTo.parent.type : null));
+      const missing = req.connections.filter((reqConn) => !compConnections.includes(reqConn));
+      if (missing.length > 0) {
+        return { success: false, message: `${typeToName[req.component]} 連接不正確` };
+      }
+    }
+
+    // 檢查 Ammeter、CopperStrip 與 ZincStrip 連接的電線另一端必須接到其他組件
+    const componentsToCheck = ["Ammeter", "CopperStrip", "ZincStrip"];
+    for (const comp of allComponents.filter((c) => componentsToCheck.includes(c.type))) {
+      for (const joint of comp.joints) {
+        if (joint.connectedTo && (joint.connectedTo.parent.type === "Wire" || joint.connectedTo.parent.type === "Clip")) {
+          const wireComp = joint.connectedTo.parent;
+          const hasOtherConnection = wireComp.joints.some((j) => j.connectedTo && j.connectedTo.parent !== comp);
+          if (!hasOtherConnection) {
+            return { success: false, message: `${typeToName[comp.type]} 所連接的電線另一端必須連接其他組件` };
+          }
+        }
+      }
+    }
+
+    // 根據電路路徑點，找出所有與電路相關的元件
+    const circuitPoints = getCircuitPathPoints();
+    const circuitComponents = new Set();
+    addCircuitComponents(circuitPoints, circuitComponents);
+
+    // 驗證電路中每個元件的連接點，另一端必須有連接到其他組件
+    for (const comp of circuitComponents) {
+      for (const joint of comp.joints) {
+        if (joint.connectedTo) {
+          const partnerComponent = joint.connectedTo.parent;
+          const hasOtherValidConnection = partnerComponent.joints.some(
+            (pj) => pj !== joint.connectedTo && pj.connectedTo && pj.connectedTo.parent !== partnerComponent
+          );
+          if (!hasOtherValidConnection) {
+            return { success: false, message: `${typeToName[comp.type]} 另一端必須連接其他組件` };
+          }
+        }
+      }
+    }
+
+    // 檢查所有連結點是否只連結到唯一的連結點
+    const connectionUsage = new Map();
+    allComponents.forEach((comp) => {
+      comp.joints.forEach((joint) => {
+        if (joint.connectedTo) {
+          const partnerJoint = joint.connectedTo;
+          connectionUsage.set(partnerJoint, (connectionUsage.get(partnerJoint) || 0) + 1);
+        }
+      });
+    });
+    for (const count of connectionUsage.values()) {
+      if (count > 1) {
+        return { success: false, message: "所有連結點只能連結一個連結點" };
+      }
+    }
+
+    // 驗證 U型管溶液
+    const uTube = allComponents.find((c) => c.type === "UTube");
+    if (!uTube.solution) {
+      return { success: false, message: "請為U型管選擇溶液" };
+    }
+    if (uTube.solution !== "硝酸鉀") {
+      return { success: false, message: "不對喔，U型管溶液不正確！" };
+    }
+
+    // 驗證所有燒杯溶液
+    const beakers = allComponents.filter((c) => c.type === "Beaker");
+    if (!beakers.every((b) => b.solution)) {
+      return { success: false, message: "請為所有燒杯選擇溶液" };
+    }
+    const solutionCounts = { 硫酸銅: 0, 硫酸鋅: 0 };
+    beakers.forEach((b) => {
+      if (b.solution in solutionCounts) {
+        solutionCounts[b.solution]++;
+      }
+    });
+    if (solutionCounts["硫酸銅"] !== 1 || solutionCounts["硫酸鋅"] !== 1) {
+      return { success: false, message: "不對喔，燒杯溶液不正確！" };
+    }
+
+    // 檢查棉花是否連接到電路中的任一元件（棉花為絕緣體）
+    const cottonConnected = allComponents
+      .filter((c) => c.type === "Cotton")
+      .some((cotton) => cotton.joints.some((joint) => joint.connectedTo && circuitComponents.has(joint.connectedTo.parent)));
+    if (cottonConnected) {
+      return { success: false, message: "棉花是絕緣體，不能導電！" };
+    }
+
+    // 驗證電路中是否包含所有重要組件
+    function hasRequiredComponents(componentsSet) {
+      const requiredTypes = ["ZincStrip", "CopperStrip", "UTube", "Ammeter"];
+      return requiredTypes.every((type) => Array.from(componentsSet).some((comp) => comp.type === type));
+    }
+
+    this.isSuccess = true;
+
+    // 處理燈泡及電路分組
+    const lightBulbs = allComponents.filter((c) => c.type === "LightBulb");
+    // 移除所有燈泡原有的光效
+    lightBulbs.forEach((bulb) => {
+      const lightEffect = bulb.children.find((child) => child.name === "lightEffect");
+      if (lightEffect) {
+        bulb.removeChild(lightEffect);
+      }
+    });
+
+    const circuits = [];
+    lightBulbs.forEach((bulb) => {
+      let foundCircuit = circuits.find((circuit) => circuit.components.has(bulb));
+      if (!foundCircuit) {
+        const circuit = {
+          components: new Set(),
+          lightBulbs: [],
+          batteryCount: 0,
+        };
+        traverseCircuit(bulb, circuit);
+        circuits.push(circuit);
+      }
+    });
+
+    // 更新燈泡光效：只有當電路包含所有重要組件時才發光
+    circuits.forEach((circuit) => {
+      if (hasRequiredComponents(circuit.components)) {
+        const bulbCount = circuit.lightBulbs.length;
+        const batteryCount = circuit.batteryCount;
+        if (bulbCount > 0) {
+          let brightness = 1 - (bulbCount - 1) * 0.25 + batteryCount * 0.25;
+          brightness = Math.max(0.5, Math.min(1.5, brightness));
+          circuit.lightBulbs.forEach((bulb) => {
+            let lightEffect = bulb.children.find((child) => child.name === "lightEffect");
+            if (!lightEffect) {
+              lightEffect = new Sprite(Texture.from("燈泡光.png"));
+              lightEffect.name = "lightEffect";
+              lightEffect.alpha = 0.7;
+              lightEffect.anchor.set(0.5);
+              lightEffect.position.set(0, -30);
+              bulb.addChild(lightEffect);
+            }
+            lightEffect.scale.set(brightness);
+          });
+        }
+      }
+    });
+
+    // 啟動動畫
+    if (this.isIonCheck && !ionAnimation.isAnimating) {
+      ionAnimation.start();
+    }
+    if (this.isEleCheck && !electronAnimation.isAnimating) {
+      electronAnimation.start();
+    }
+
+    return { success: true, message: "組裝成功！" };
+  }
+
+  updateAmmeterPointer() {
+    const ammeter = Components.children.find((c) => c.type === "Ammeter");
+    if (!ammeter) return;
+
+    const pin = ammeter.children.find((child) => child instanceof Graphics);
+    if (pin) {
+      gsap.to(pin, {
+        rotation: Math.PI / 3,
+        duration: 1,
+        onComplete: () => {
+          gsap.to(pin, {
+            rotation: Math.PI / 2.5,
+            duration: 1,
+            yoyo: true,
+            repeat: -1,
+            ease: "sine.inOut",
+          });
+        },
+      });
+    }
+  }
+
+  setupDebugButton() {
+    // 創建除錯按鈕
+    const debugButton = new Container();
+
+    // 按鈕背景
+    const buttonBg = new Graphics().roundRect(-50, -20, 100, 40, 10).fill(0xff0000);
+
+    // 按鈕文字
+    const buttonText = new Text({
+      text: "DEBUG",
+      style: listStyle,
+    });
+    buttonText.anchor.set(0.5);
+
+    debugButton.addChild(buttonBg, buttonText);
+    debugButton.position.set(1300, 90);
+    debugButton.eventMode = "static";
+    debugButton.cursor = "pointer";
+
+    debugButton.on("pointerdown", () => this.setupDebugScene());
+    this.container.addChild(debugButton);
+
+    // 隱藏除錯按鈕，並監聽鍵盤事件，只有同時按下 Shift + D + B 才會顯示
+    debugButton.visible = false;
+    const keysPressed = { shift: false, d: false, b: false };
+
+    const onKeyDown = (e) => {
+      const key = e.key.toLowerCase();
+      if (key === "shift") keysPressed.shift = true;
+      if (key === "d") keysPressed.d = true;
+      if (key === "b") keysPressed.b = true;
+      if (keysPressed.shift && keysPressed.d && keysPressed.b) {
+        debugButton.visible = true;
+      }
+    };
+
+    const onKeyUp = (e) => {
+      const key = e.key.toLowerCase();
+      if (key === "shift") keysPressed.shift = false;
+      if (key === "d") keysPressed.d = false;
+      if (key === "b") keysPressed.b = false;
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+  }
+
+  setupDebugScene() {
+    // 清除現有組件
+    Components.removeChildren();
+
+    // 創建並放置檢流計
+    const ammeter = new Ammeter();
+    ammeter.position.set(900, 300);
+    Components.addChild(ammeter);
+
+    // 創建並放置 U型管
+    const uTube = new UTube();
+    uTube.position.set(900, 660);
+    uTube.solution = "硝酸鉀";
+    uTube.solutionText.text = "溶液：硝酸鉀";
+    Components.addChild(uTube);
+
+    // 創建並放置鋅片
+    const zincStrip = new ZincStrip();
+    zincStrip.position.set(650, 660);
+    Components.addChild(zincStrip);
+
+    // 創建並放置銅片
+    const copperStrip = new CopperStrip();
+    copperStrip.position.set(1130, 660);
+    Components.addChild(copperStrip);
+
+    // 創建並放置燒杯
+    const beaker1 = new Beaker();
+    beaker1.position.set(700, 780);
+    beaker1.setSolution("硫酸鋅");
+    Components.addChild(beaker1);
+
+    const beaker2 = new Beaker();
+    beaker2.position.set(1040, 780);
+    beaker2.setSolution("硫酸銅");
+    Components.addChild(beaker2);
+
+    // 創建並放置電線
+    const wire1 = new Wire();
+    wire1.position.set(750, 450);
+    wire1.joints[0].position.set(40, -90);
+    wire1.joints[1].position.set(-100, 90);
+    wire1.redrawWire();
+    Components.addChild(wire1);
+
+    const wire2 = new Wire();
+    wire2.position.set(1020, 450);
+    wire2.joints[0].position.set(0, -90);
+    wire2.joints[1].position.set(110, 90);
+    wire2.redrawWire();
+    Components.addChild(wire2);
+
+    // 設置連接
+    setTimeout(() => {
+      this.connectComponents(zincStrip, wire1, 0);
+      this.connectComponents(wire1, ammeter, 1);
+      this.connectComponents(ammeter, wire2, 0);
+      this.connectComponents(wire2, copperStrip, 1);
+      this.connectComponents(zincStrip, beaker1, 1);
+      this.connectComponents(copperStrip, beaker2, 1);
+      this.connectComponents(beaker1, uTube, 0);
+      this.connectComponents(beaker2, uTube, 1);
+
+      // 重新檢查所有連接
+      recheckAllConnections();
+    }, 100);
+  }
+
+  connectComponents(comp1, comp2, jointIndex) {
+    // 找到最近的連接點
+    const joint1 = comp1.joints[jointIndex];
+    const joint2 = comp2.joints[0]; // 使用第一個連接點
+
+    // 模擬連接
+    joint1.connectedTo = joint2;
+    joint2.connectedTo = joint1;
+
+    // 設置視覺效果
+    joint1.tint = 0x00ff00;
+    joint2.tint = 0x00ff00;
+    joint1.scale.set(0.7);
+    joint2.scale.set(0.7);
+  }
+
+  update(time) {
+    weight.checkWeight();
   }
 }
 
@@ -1001,7 +1579,7 @@ class Beaker extends Container {
     // 創建溶液名稱文字
     this.solutionText = new Text({
       text: "溶液：點擊後選擇右側列表",
-      style: { fontSize: 22, fill: 0x333333 },
+      style: defaultStyle3,
     });
     this.solutionText.anchor.set(0.5, 0);
     this.solutionText.position.set(20, 180);
@@ -1127,7 +1705,7 @@ class CopperStrip extends Container {
   drawStrip(scale = 1) {
     this.body.clear();
 
-    const width = 40;
+    const width = 60;
     const height = 250;
     const topWidth = width;
     const bottomWidth = width * scale;
@@ -1188,7 +1766,7 @@ class ZincStrip extends Container {
   drawStrip(scale = 1) {
     this.body.clear();
 
-    const width = 40;
+    const width = 60;
     const height = 250;
     const topWidth = width;
     const bottomWidth = width * scale;
@@ -1225,7 +1803,7 @@ class UTube extends Container {
     // 創建溶液名稱文字
     this.solutionText = new Text({
       text: "溶液：點擊後選擇右側列表",
-      style: { fontSize: 22, fill: 0x333333 },
+      style: defaultStyle3,
     });
     this.solutionText.anchor.set(0.5, 0);
     this.solutionText.position.set(0, -180);
@@ -1425,9 +2003,68 @@ class Cotton extends Container {
   }
 }
 
+class CarbonRod extends Container {
+  constructor() {
+    super();
+    this.type = "CarbonRod";
+    this.joints = [];
+    this.body = new Graphics();
+    this.drawRod();
+
+    this.body.eventMode = "static";
+    this.body.cursor = "pointer";
+    this.body.on("pointerdown", onDragStart);
+
+    const JOINT_POSITION = [
+      [0, -120],
+      [0, 120],
+    ];
+    for (let [x, y] of JOINT_POSITION) {
+      const joint = new Graphics().circle(0, 0, 30).fill({ color: 0xffffff, alpha: 0.5 }).stroke({ color: 0xffffff, width: 2 });
+      joint.eventMode = "static";
+      joint.cursor = "pointer";
+      joint.on("pointerdown", onDragStart);
+      joint.position.set(x, y);
+      joint.connected = false;
+      joint.isJoint = true;
+      joint.zIndex = 2;
+      this.joints.push(joint);
+      this.addChild(joint);
+    }
+
+    const text = new Text({
+      text: "碳棒",
+      style: listStyle,
+    });
+    text.anchor.set(0.5);
+
+    this.addChild(this.body, text);
+  }
+
+  drawRod() {
+    this.body.clear();
+    const width = 60;
+    const height = 250;
+
+    // 繪製長方形碳棒
+    this.body
+      .moveTo(-width / 2, -height / 2)
+      .lineTo(width / 2, -height / 2)
+      .lineTo(width / 2, height / 2)
+      .lineTo(-width / 2, height / 2)
+      .fill(0x333333); // 深灰色表示碳棒
+  }
+
+  getGlobalJointPositions() {
+    return this.joints.map((joint) => {
+      const globalPos = this.toGlobal(joint.position);
+      return { x: globalPos.x, y: globalPos.y };
+    });
+  }
+}
+
 class IonAnimation {
-  constructor(module2) {
-    this.module2 = module2;
+  constructor() {
     this.container = new Container();
     this.ionContainer = new Container();
     this.container.addChild(this.ionContainer);
@@ -1499,11 +2136,7 @@ class IonAnimation {
 
     const ionText = new Text({
       text: text,
-      style: {
-        fontSize: 16,
-        fill: 0xffffff,
-        align: "center",
-      },
+      style: ionStyle,
     });
     ionText.anchor.set(0.5);
 
@@ -1748,8 +2381,7 @@ function getCircuitPathPoints() {
 }
 
 class ElectronAnimation {
-  constructor(module2) {
-    this.module2 = module2;
+  constructor() {
     this.container = new Container();
     this.electronsContainer = new Container();
     this.container.addChild(this.electronsContainer);
@@ -1817,11 +2449,6 @@ class ElectronAnimation {
   }
 
   start() {
-    // Only start electron animation if the circuit is complete
-    if (!this.module2.isSuccess) {
-      console.log("Incomplete circuit - electron animation will not start.");
-      return;
-    }
     if (this.isAnimating) return;
     this.isAnimating = true;
 
@@ -1956,8 +2583,8 @@ class MetalStripAnimation {
 
     if (!zincStrip || !copperStrip) return;
 
-    this.progress = Math.min(19, this.progress + 0.2);
-    const normalizedProgress = this.progress / 20;
+    this.progress = Math.min(10, this.progress + 0.1);
+    const normalizedProgress = this.progress / 10;
 
     // 更新金屬片的進度屬性
     zincStrip.progress = normalizedProgress;
@@ -1994,9 +2621,9 @@ class MetalStripAnimation {
   }
 
   drawMetalStrip(graphics, progress, color, isZinc) {
-    const width = 40;
+    const width = 60;
     const mainHeight = 250;
-    const addHeight = 60;
+    const addHeight = 65;
 
     graphics.fill(color);
 
@@ -2009,7 +2636,7 @@ class MetalStripAnimation {
       graphics.lineTo(-width / 2, mainHeight / 2 - addHeight);
 
       // 底部矩形：寬度隨進度減少
-      const currentWidth = width * (1 - progress * 0.5); // 最終寬度為原來的0.5倍
+      const currentWidth = width * (1 - progress * 0.25); // 最終寬度為原來的0.5倍
       graphics.moveTo(-currentWidth / 2, mainHeight / 2 - addHeight);
       graphics.lineTo(currentWidth / 2, mainHeight / 2 - addHeight);
       graphics.lineTo(currentWidth / 2, mainHeight / 2);
@@ -2022,7 +2649,7 @@ class MetalStripAnimation {
       graphics.lineTo(-width / 2, mainHeight / 2 - addHeight);
 
       // 底部矩形：寬度隨進度增加
-      const currentWidth = width * (1 + progress * 0.5); // 最終寬度為原來的1.5倍
+      const currentWidth = width * (1 + progress * 0.25); // 最終寬度為原來的1.5倍
       graphics.moveTo(-currentWidth / 2, mainHeight / 2 - addHeight);
       graphics.lineTo(currentWidth / 2, mainHeight / 2 - addHeight);
       graphics.lineTo(currentWidth / 2, mainHeight / 2);
@@ -2032,12 +2659,13 @@ class MetalStripAnimation {
 }
 
 class ItemsList {
-  constructor() {
+  constructor(components) {
     this.container = new Container();
     this.items = [];
     this.module2 = null;
 
-    this.components = {
+    // All available components
+    this.availableComponents = {
       U型管: { texture: "U型管.png", type: "UTube" },
       檢流計: { texture: "檢流計.png", type: "Ammeter" },
       電線: { texture: "電線.png", type: "Wire" },
@@ -2045,7 +2673,23 @@ class ItemsList {
       電池: { texture: "電池.png", type: "Battery" },
       迴紋針: { texture: "迴紋針.png", type: "Clip" },
       棉花: { texture: "棉花.png", type: "Cotton" },
+      燒杯: { texture: "燒杯.png", type: "Beaker" },
+      碳棒: { texture: "碳棒.png", type: "CarbonRod" },
+      鋅片: { texture: "鋅片.png", type: "ZincStrip" },
     };
+
+    // Filter components based on provided list
+    if (components && Array.isArray(components)) {
+      this.components = {};
+      Object.keys(this.availableComponents).forEach((key) => {
+        if (components.includes(key)) {
+          this.components[key] = this.availableComponents[key];
+        }
+      });
+    } else {
+      // Default to all components if none specified
+      this.components = this.availableComponents;
+    }
 
     this.createItems();
   }
@@ -2061,18 +2705,17 @@ class ItemsList {
   }
 
   createItems() {
-    // 銷毀現有的項目
+    // Clear existing items
     this.items.forEach((item) => item.destroy());
     this.items = [];
 
     const componentNames = Object.keys(this.components);
-    // 將組件以垂直欄排列，組件間隔為5（項目高度120加上5的間距，即125）
+    // Stack components vertically with 5px gap
     for (let i = 0; i < componentNames.length; i++) {
       const name = componentNames[i];
       const component = this.components[name];
 
       const item = new Container();
-      // 設定項目的位置；根據需要調整 x 與 y 值
       item.position.set(20, 70 + i * 125);
 
       const itemBg = new Graphics().roundRect(0, 0, 120, 120, 15).fill(0xeeeeee).stroke({ width: 2, color: 0x3c3c3c });
@@ -2080,7 +2723,6 @@ class ItemsList {
 
       const sprite = new Sprite(Texture.from(component.texture));
       sprite.anchor.set(0.5);
-      // 調整精靈大小以適應項目區域
       const scale = 80 / Math.max(sprite.width, sprite.height);
       sprite.scale.set(scale);
       sprite.position.set(60, 50);
@@ -2107,7 +2749,6 @@ class ItemsList {
   }
 
   onDragStart(event, item) {
-    // 如果該單一使用元件已被拖出過，就不做任何動作
     if (!item.visible) return;
 
     const sprite = new Sprite(Texture.from(item.texture));
@@ -2118,7 +2759,6 @@ class ItemsList {
     const globalPos = event.getLocalPosition(this.container.parent);
     sprite.position.copyFrom(globalPos);
 
-    // 計算偏移量
     this.dragOffset = {
       x: globalPos.x - this.container.parent.toLocal({ x: event.clientX, y: event.clientY }).x,
       y: globalPos.y - this.container.parent.toLocal({ x: event.clientX, y: event.clientY }).y,
@@ -2126,7 +2766,7 @@ class ItemsList {
 
     sprite.alpha = 0.8;
     sprite.componentType = item.componentType;
-    sprite.startPos = { x: event.clientX, y: event.clientY }; // 記錄起始位置
+    sprite.startPos = { x: event.clientX, y: event.clientY };
 
     this.draggedSprite = sprite;
     this.container.parent.addChild(sprite);
@@ -2140,7 +2780,6 @@ class ItemsList {
 
     const dragEnd = (e) => {
       if (this.draggedSprite) {
-        // 計算拖動距離
         const dragDistance = Math.sqrt(
           Math.pow(e.clientX - this.draggedSprite.startPos.x, 2) + Math.pow(e.clientY - this.draggedSprite.startPos.y, 2)
         );
@@ -2151,14 +2790,11 @@ class ItemsList {
           y: point.y + this.dragOffset.y,
         };
 
-        // 只有當拖動距離超過閾值時才建立元件
         if (dragDistance > 20) {
           const component = this.createComponent(item.componentType, finalPos);
           if (component) {
             Components.addChild(component);
-            // 若物件為 UTube 或 Ammeter，移除 ItemsList 上的圖案，使其無法再拖動
             if (item.componentType === "UTube" || item.componentType === "Ammeter") {
-              // 只隱藏除了第一個元素 (itemBg) 以外的所有項目
               for (let i = 1; i < item.children.length; i++) {
                 item.children[i].visible = false;
               }
@@ -2206,6 +2842,18 @@ class ItemsList {
       case "Cotton":
         component = new Cotton();
         break;
+      case "Beaker":
+        component = new Beaker();
+        if (this.module2) {
+          this.module2.bindBeakerEvent(component);
+        }
+        break;
+      case "CarbonRod":
+        component = new CarbonRod();
+        break;
+      case "ZincStrip":
+        component = new ZincStrip();
+        break;
     }
 
     if (component) {
@@ -2227,7 +2875,7 @@ class Weight {
     // 建立秤重文字
     this.weightText = new Text({
       text: "",
-      style: { fontSize: 24, fill: 0x333333 },
+      style: defaultStyle,
     });
     this.weightText.anchor.set(0.5);
     this.weightText.position.set(0, 120);
@@ -2284,12 +2932,19 @@ class Weight {
   }
 
   calculateWeight(strip) {
-    const progress = strip.progress || 0;
+    const progress = (strip.progress || 0) * 10;
     if (strip.type === "ZincStrip") {
-      return 100 - progress * 3.25;
+      // 將 3.25 改為 0.325，這樣 100-0.325*10 = 96.75g
+      return 100 - progress * 0.325;
     } else if (strip.type === "CopperStrip") {
-      return 100 + progress * 3.15;
+      // 將 3.15 改為 0.315，這樣 100+0.315*10 = 103.15g
+      return 100 + progress * 0.315;
     }
     return 0;
   }
 }
+
+export const ionAnimation = new IonAnimation();
+export const electronAnimation = new ElectronAnimation();
+export const metalStripAnim = new MetalStripAnimation();
+export const weight = new Weight();

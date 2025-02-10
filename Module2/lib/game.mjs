@@ -1,10 +1,10 @@
 import { ItemsList } from "./itemsList.mjs";
-import { DropdownMenu } from "./dropdownMenu.mjs";
+import { createOptionGroup, createButton, createCheckboxBlock, DropdownMenu } from "./UiSet.mjs";
 import { Container, Graphics, Sprite, Texture, Text } from "./pixi.mjs";
-import { defaultStyle, defaultStyle2, listStyle } from "./textStyle.mjs";
+import { defaultStyle, listStyle } from "./textStyle.mjs";
 import { ItemsCanvas } from "./itemsCanvas.mjs";
 import { ElectrolysisModule, IonModule, SetElectron, showStatusText } from "./experimentModule.mjs";
-import { Module2 } from "./module2.mjs";
+import { electronAnimation, ionAnimation, metalStripAnim, Module2, Module4 } from "./module.mjs";
 
 export { Game };
 class Game {
@@ -27,6 +27,7 @@ class Game {
     //this.isZoomedIn = false;
     this.itemCanvas = new ItemsCanvas();
     this.module2 = new Module2();
+    this.module4 = new Module4();
 
     this.inPage1 = false;
 
@@ -249,13 +250,15 @@ class Game {
 
     // 第一組選項
     const basesec = [
-      { text: "電解實驗模組", action: this.modlePage1.bind(this) },
-      { text: "電解氯化銅模組", action: this.modlePage1_2.bind(this) },
+      { text: "電解氯化銅實驗模組", action: this.modlePage1.bind(this) },
       { text: "離子分兩派實驗模組", action: this.modlePage3.bind(this) },
     ];
 
     // 第二組選項
-    const advansec = [{ text: "鋅銅電池模組", action: this.modlePage2.bind(this) }];
+    const advansec = [
+      { text: "鋅銅電池實驗模組", action: this.modlePage2.bind(this) },
+      { text: "電解電鍍實驗模組", action: this.modlePage4.bind(this) },
+    ];
 
     // 創建第一組選項
     const group1Result = createOptionGroup(basesec, 0);
@@ -353,7 +356,7 @@ class Game {
     this.startElectrolysisBtn = createButton({
       text: "開始電解",
       x: 1650,
-      y: 245,
+      y: 330,
       onClick: () => {
         this.electrolysisModule.startElectrolysis();
       },
@@ -387,6 +390,19 @@ class Game {
     );
     this.UIContainer.addChild(this.ionCon);
 
+    this.showIonFlow = createCheckboxBlock(
+      "顯示電極",
+      1650,
+      245,
+      () => {
+        this.electrolysisModule.toggleTextVisibility(true);
+      },
+      () => {
+        this.electrolysisModule.toggleTextVisibility(false);
+      }
+    );
+    this.UIContainer.addChild(this.showIonFlow);
+
     this.setbtnCon.on("pointerup", () => {
       showStatusText("組裝中...", this.itemCanvas);
       // 直接設置組件
@@ -412,108 +428,11 @@ class Game {
     // 液體下拉選單
     const liquids = new DropdownMenu({
       x: 1450,
-      y: 290,
+      y: 375,
       items: Object.keys(this.electrolysisModule.solutionProperties),
       label: "選擇溶液",
       columns: 2,
       prefix: "溶液",
-      hoverColor: 0xf0f0f0,
-    });
-
-    liquids.onSelect = (item) => {
-      this.electrolysisModule.setSolution(item);
-    };
-    this.UIContainer.addChild(liquids.container);
-  }
-
-  // 模組一｜電解實驗模組
-  modlePage1_2() {
-    this.sceneContainer.removeChildren();
-    this.UIContainer.removeChildren();
-
-    this.UIContainer.addChild(this.reloadbtn); //重新整理按鈕
-    this.UIContainer.addChild(this.setbtnCon); //電路模組按鈕
-    this.sceneContainer.addChild(this.itemCanvas.container); //場景畫布
-
-    this.inPage1 = true;
-
-    this.setbtnCon.x = 110;
-    this.setbtnCon.y = 520;
-
-    const draggableList = new ItemsList(this.imageList, this.itemCanvas, 2, [0, 4]);
-    this.itemCanvas.setItemsList(draggableList);
-
-    this.UIContainer.addChild(draggableList.container);
-
-    // 開始電解按鈕
-    this.startElectrolysisBtn = createButton({
-      text: "開始電解",
-      x: 1650,
-      y: 245,
-      onClick: () => {
-        this.electrolysisModule.startElectrolysis();
-      },
-    });
-    this.UIContainer.addChild(this.startElectrolysisBtn); //開始電解按鈕
-
-    this.showIonFlow = createCheckboxBlock(
-      "顯示電極",
-      1650,
-      160,
-      () => {
-        this.electrolysisModule.toggleElectronVisibility(true);
-      },
-      () => {
-        this.electrolysisModule.toggleElectronVisibility(false);
-      }
-    );
-    this.UIContainer.addChild(this.showIonFlow);
-
-    // 離子顯示checkbox
-    this.ionCon = createCheckboxBlock(
-      "顯示離子",
-      1650,
-      75,
-      () => {
-        this.electrolysisModule.toggleIonAnimation(true);
-      },
-      () => {
-        this.electrolysisModule.toggleIonAnimation(false);
-      }
-    );
-    this.UIContainer.addChild(this.ionCon);
-
-    this.setbtnCon.on("pointerup", () => {
-      showStatusText("組裝中...", this.itemCanvas);
-      // 直接設置組件
-
-      this.electrolysisModule.reset();
-      this.electrolysisModule.moduleSetup.setupElectrolysisModule();
-
-      // 更新狀態
-      this.electrolysisModule.isAssembled = true;
-      this.electrolysisModule.validCircuit = true;
-      this.electrolysisModule.isAllitem = true;
-
-      // 如果需要顯示離子
-      if (this.ionCon?.children[3]?.visible) {
-        this.electrolysisModule.toggleIonAnimation(true);
-      }
-    });
-
-    // 標題
-    this.UIContainer.addChild(this.topicCon);
-    this.topicText.text = "實驗｜電解氯化銅模組";
-
-    // 液體下拉選單
-    const liquids = new DropdownMenu({
-      x: 1450,
-      y: 290,
-      items: Object.keys(this.electrolysisModule.solutionProperties),
-      label: "選擇溶液",
-      columns: 2,
-      prefix: "溶液",
-      hoverColor: 0xf0f0f0,
     });
 
     liquids.onSelect = (item) => {
@@ -540,14 +459,14 @@ class Game {
         if (!result.success) return;
 
         if (this.module2.isIonCheck) {
-          this.module2.ionAnimation.start();
+          ionAnimation.start();
         }
         if (this.module2.isEleCheck) {
-          this.module2.electronAnimation.start();
+          electronAnimation.start();
         }
 
         this.module2.updateAmmeterPointer();
-        this.module2.metalStripAnim.start();
+        metalStripAnim.start();
       },
     });
 
@@ -583,7 +502,7 @@ class Game {
 
     //標題
     this.UIContainer.addChild(this.topicCon);
-    this.topicText.text = "實驗｜鋅銅電池模組";
+    this.topicText.text = "實驗｜鋅銅電池實驗模組";
 
     // 創建溶液下拉選單
     const drugs = new DropdownMenu({
@@ -654,6 +573,106 @@ class Game {
     this.UIContainer.addChild(drugs.container);
   }
 
+  // 模組四｜電鍍實驗模組
+  modlePage4() {
+    this.sceneContainer.removeChildren();
+    this.UIContainer.removeChildren();
+
+    this.sceneContainer.addChild(this.module4.container);
+    this.UIContainer.addChild(this.reloadbtn); //重新整理按鈕
+
+    this.checkBtn = createButton({
+      text: "組裝完成",
+      x: 1650,
+      y: 245,
+      onClick: () => {
+        const result = this.module4.validateCircuitAssembly();
+        showStatusText(result.message, this.module4);
+        if (!result.success) return;
+
+        if (this.module4.isIonCheck) {
+          ionAnimation.start();
+        }
+        if (this.module4.isEleCheck) {
+          electronAnimation.start();
+        }
+
+        this.module4.updateAmmeterPointer();
+        metalStripAnim.start();
+      },
+    });
+
+    this.UIContainer.addChild(this.checkBtn); //組裝完成按鈕
+
+    // 離子顯示checkbox
+    this.ionCon = createCheckboxBlock(
+      "顯示離子",
+      1650,
+      75,
+      () => {
+        this.module4.toggleIonDisplay(true);
+      },
+      () => {
+        this.module4.toggleIonDisplay(false);
+      }
+    );
+    this.UIContainer.addChild(this.ionCon);
+
+    // 離子顯示checkbox
+    this.ionCon = createCheckboxBlock(
+      "顯示電子",
+      1650,
+      160,
+      () => {
+        this.module4.toggleElectronDisplay(true);
+      },
+      () => {
+        this.module4.toggleElectronDisplay(false);
+      }
+    );
+    this.UIContainer.addChild(this.ionCon);
+
+    //標題
+    this.UIContainer.addChild(this.topicCon);
+    this.topicText.text = "實驗｜電解電鍍實驗模組";
+
+    // 創建溶液下拉選單
+    const drugs = new DropdownMenu({
+      x: 1450,
+      y: 290,
+      items: ["硫酸銅", "硫酸鋅", "硝酸鉀"],
+      label: "選擇溶液",
+      columns: 1,
+      prefix: "溶液",
+      hoverColor: 0xf0f0f0,
+    });
+
+    // 當選擇溶液時，傳遞給 module4 處理
+    drugs.onSelect = (item) => {
+      this.module4.handleSolutionSelect(item);
+    };
+
+    this.UIContainer.addChild(drugs.container);
+
+    // 創建溶液下拉選單
+    const elect = new DropdownMenu({
+      x: 1450,
+      y: 560,
+      items: ["兩極碳棒", "兩極銅棒", "正極碳棒 負極銅棒", "正極銅棒 負極碳棒"],
+      label: "兩極種類",
+      columns: 1,
+      prefix: "電極",
+      hoverColor: 0xf0f0f0,
+    });
+
+    // 當選擇溶液時，傳遞給 module4 處理
+    drugs.onSelect = (item) => {
+      this.module4.handleSolutionSelect(item);
+    };
+
+    this.UIContainer.addChild(elect.container);
+  }
+
   pauseGame() {
     this.paused = true;
     console.log("暫停更新");
@@ -677,113 +696,4 @@ class Game {
     this.ionModule.update(currentTime);
     this.module2.update(currentTime);
   }
-}
-
-function createCheckboxBlock(text, x, y, onShow, onHide) {
-  const ionText = new Text({ text: text, style: defaultStyle });
-  ionText.anchor.set(0, 0.5);
-  ionText.x = -130;
-
-  const ionBg = new Graphics();
-  ionBg.roundRect(-200, -40, 400, 80, 10);
-  ionBg.fill(0xfcfcfc);
-  ionBg.stroke({ color: 0x3c3c3c, width: 2 });
-
-  const checkbox = new Graphics();
-  checkbox.x = -170;
-  checkbox.rect(-15, -15, 30, 30);
-  checkbox.fill(0xfcfcfc);
-  checkbox.stroke({ color: 0x3c3c3c, width: 2 });
-
-  const checkmark = new Sprite(Texture.from("check.png"));
-  checkmark.anchor.set(0.5);
-  checkmark.scale.set(0.05);
-  checkmark.x = -170;
-  checkmark.visible = false;
-
-  const container = new Container();
-  container.x = x;
-  container.y = y;
-  container.addChild(ionBg, ionText, checkbox, checkmark);
-
-  container.eventMode = "static";
-  container.cursor = "pointer";
-  let isChecked = false;
-  container.on("pointerdown", () => {
-    isChecked = !isChecked;
-    checkmark.visible = isChecked;
-    if (isChecked) {
-      onShow();
-    } else {
-      onHide();
-    }
-  });
-  return container;
-}
-
-function createOptionGroup(options) {
-  const optionContainers = [];
-  const width = 500;
-  const height = 100;
-  const bgHeight = 110 * options.length;
-  const yOffset = options.length === 1 ? -5 : ((options.length - 1) * height - (options.length === 3 ? 30 : 10)) / 2;
-
-  const groupBg = new Graphics();
-  groupBg.roundRect(-width / 2, (-height / 2) * options.length, width, bgHeight, 20);
-  groupBg.fill(0xffffff);
-  groupBg.stroke({ color: 0x3a398d, width: 5 });
-  groupBg.alpha = 0.7;
-
-  options.forEach((option, index) => {
-    const yPos = -yOffset + index * height;
-    const optionGraphics = new Graphics();
-    optionGraphics.rect((-width + 10) / 2, -height / 2, width - 10, height);
-    optionGraphics.fill(0xadadad);
-    optionGraphics.alpha = 0;
-    optionGraphics.y = yPos;
-
-    const optionText = new Text({ text: option.text, style: defaultStyle2 });
-    optionText.anchor.set(0.5);
-    optionText.y = yPos;
-
-    optionGraphics.eventMode = "static";
-    optionGraphics.cursor = "pointer";
-    optionGraphics.on("pointerup", option.action);
-    optionGraphics.on("pointerover", () => (optionGraphics.alpha = 0.8));
-    optionGraphics.on("pointerout", () => (optionGraphics.alpha = 0));
-    optionGraphics.on("pointerdown", () => (optionGraphics.alpha = 0.8));
-
-    optionContainers.push(optionGraphics, optionText);
-  });
-
-  return { groupBg, optionContainers };
-}
-
-function createButton({ text, x, y, onClick }) {
-  const buttonText = new Text({ text, style: defaultStyle });
-  buttonText.anchor.set(0.5);
-
-  const buttonBg = new Graphics();
-  buttonBg.roundRect(-200, -40, 400, 80, 10);
-  buttonBg.fill(0xffffe0);
-  buttonBg.stroke({ color: 0x3c3c3c, width: 2 });
-
-  const buttonContainer = new Container();
-  buttonContainer.x = x;
-  buttonContainer.y = y;
-  buttonContainer.addChild(buttonBg, buttonText);
-  buttonContainer.eventMode = "static";
-  buttonContainer.cursor = "pointer";
-  buttonContainer.on("pointerover", () => {
-    buttonContainer.alpha = 0.8;
-  });
-  buttonContainer.on("pointerout", () => {
-    buttonContainer.alpha = 1;
-  });
-  buttonContainer.on("pointerup", onClick);
-  buttonContainer.on("pointerdown", () => {
-    buttonContainer.alpha = 0.8;
-  });
-
-  return buttonContainer;
 }

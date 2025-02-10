@@ -1,5 +1,5 @@
 import { Sprite, Texture, Text, Graphics, Container, ColorMatrixFilter } from "./pixi.mjs";
-import { defaultStyle } from "./textStyle.mjs";
+import { defaultStyle, listStyle, scoreStyle } from "./textStyle.mjs";
 import { gsap } from "../gsap-public/src/index.js";
 
 export class ElectrolysisModule {
@@ -9,6 +9,7 @@ export class ElectrolysisModule {
     this.ionAnimationActive = false;
     this.connectedPHPaper = null;
     this.isIonCheckboxChecked = false;
+    this.isTextCheckboxChecked = false;
 
     this.isElectrolysisActive = false; // 追蹤實驗是否在進行中
     this.isElectronCheckboxChecked = false; // 追蹤使用者是否想看到電子流向
@@ -142,8 +143,234 @@ export class ElectrolysisModule {
     this.updateBulbBrightness(solutionProps.brightness);
     this.updateBeakerColor(solutionProps.color);
 
+    // 如果選擇的是「氯化銅」，則開始額外的氯化銅動畫
+    if (this.selectedSolution === "氯化銅") {
+      this.startCopperChlorideAnimation();
+    }
+
     this.ionMoving = true;
     return true;
+  }
+
+  // 新增：氯化銅專屬動畫（電極沉積/氣泡＆溶液變淡）
+  startCopperChlorideAnimation() {
+    // 延遲 1.5 秒後開始執行
+    gsap.delayedCall(1.5, () => {
+      // ------------------------------
+      // 新增電極區塊：負極與正極
+      // ------------------------------
+      // 建立負極（左側碳棒）
+      const negativeElectrode = new Container();
+      const negLabel = new Text({ text: "-", style: scoreStyle });
+      negLabel.x = 5;
+      negLabel.y = 70;
+      // 設定負極位置（依實際畫布調整座標）
+      negativeElectrode.addChild(negLabel);
+      negativeElectrode.x = this.moduleSetup.centerX - 90;
+      negativeElectrode.y = this.moduleSetup.centerY + 80;
+      negLabel.visible = this.isTextCheckboxChecked; // 加入這行
+
+      // 建立正極（右側碳棒）
+      const positiveElectrode = new Container();
+      const posLabel = new Text({ text: "+", style: scoreStyle });
+      posLabel.x = 5;
+      posLabel.y = 70;
+      positiveElectrode.addChild(posLabel);
+      positiveElectrode.x = this.moduleSetup.centerX + 100;
+      positiveElectrode.y = this.moduleSetup.centerY + 80;
+      posLabel.visible = this.isTextCheckboxChecked; // 加入這行
+
+      // 將電極區塊加入畫布（或實驗模組容器）
+      this.itemCanvas.container.addChild(negativeElectrode);
+      this.itemCanvas.container.addChild(positiveElectrode);
+
+      // -----------------------------------------
+      // 負極：銅附著沉積動畫（紅棕色）
+      // -----------------------------------------
+      const copperDeposition = new Graphics();
+      // 初始在碳棒底部，寬40、高0
+      copperDeposition.rect(-2, 250, 42, 0);
+      copperDeposition.fill(0x8b4513); // 可調整成理想的紅棕色
+      copperDeposition.alpha = 0.5;
+      negativeElectrode.addChild(copperDeposition);
+      const progress = { height: 0, y: 250 }; // 從底部 250 開始
+
+      // 利用 gsap tween 該物件，並在 onUpdate 裡更新 Graphics
+      gsap.to(progress, {
+        height: 110, // 目標高度80
+        y: 140, // 目標位置 170
+        duration: 20,
+        ease: "linear",
+        onUpdate: () => {
+          // 重新繪製 copperDeposition
+          copperDeposition.clear();
+          copperDeposition.rect(-2, progress.y, 44, progress.height);
+          copperDeposition.fill(0x8b4513);
+        },
+      });
+
+      // -----------------------------------------
+      // 正極：氣泡產生動畫（黃綠色）與毒性標示
+      // -----------------------------------------
+      const bubblesContainer = new Container();
+      positiveElectrode.addChild(bubblesContainer);
+      // 氣泡建立函式
+      const createBubble = () => {
+        const bubble = new Graphics();
+        bubble.circle(0, 0, 5);
+        bubble.fill(0xadff2f); // 黃綠色
+        // 隨機在電極區塊寬度內
+        bubble.x = Math.random() * 50;
+        // 從底部開始產生
+        bubble.y = 250;
+        return bubble;
+      };
+
+      let bubbleDelay = 500; // 初始延遲 500ms
+      const minDelay = 10; // 最小延遲 100ms
+      let isActive = true; // 控制是否繼續產生氣泡
+
+      // 每 2 秒加快氣泡產生速度，25秒後開始減慢
+      const speedupInterval = setInterval(() => {
+        if (!isActive) {
+          clearInterval(speedupInterval);
+          return;
+        }
+
+        bubbleDelay = Math.max(minDelay, bubbleDelay * 0.8);
+        clearInterval(bubbleInterval);
+        createBubbleInterval();
+      }, 1000);
+
+      // 25秒後開始減少氣泡
+      setTimeout(() => {
+        isActive = false;
+        // 逐漸增加延遲時間
+        const slowdown = setInterval(() => {
+          bubbleDelay *= 1.5;
+          if (bubbleDelay > 2000) {
+            clearInterval(bubbleInterval);
+            clearInterval(slowdown);
+          } else {
+            clearInterval(bubbleInterval);
+            createBubbleInterval();
+          }
+        }, 1000);
+      }, 20000);
+
+      // 建立氣泡產生間隔
+      let bubbleInterval;
+      const createBubbleInterval = () => {
+        bubbleInterval = setInterval(() => {
+          if (!isActive && Math.random() > 0.7) return; // 減少氣泡產生機率
+          const bubble = createBubble();
+          bubblesContainer.addChild(bubble);
+          gsap.to(bubble, {
+            y: 130, // 改為從250往上到130的位置
+            alpha: 0,
+            duration: 3,
+            ease: "power1.out",
+            onComplete: () => {
+              bubblesContainer.removeChild(bubble);
+            },
+          });
+        }, bubbleDelay);
+      };
+
+      let skullCount = 10;
+      // 創建骷髏頭動畫
+      const skullInterval = setInterval(() => {
+        if (!isActive && skullCount <= 0) {
+          clearInterval(skullInterval);
+          return;
+        }
+        const floatingSkull = new Sprite(Texture.from("skull.png"));
+        floatingSkull.scale.set(0.07);
+        floatingSkull.tint = 0xff0000;
+        floatingSkull.x = (40 - floatingSkull.width) / 2;
+        floatingSkull.y = 250 - floatingSkull.height;
+        positiveElectrode.addChild(floatingSkull);
+
+        gsap.to(floatingSkull, {
+          x: floatingSkull.x + (Math.random() < 0.5 ? -50 : 50),
+          y: floatingSkull.y - 80 - Math.random() * 40,
+          alpha: 0,
+          duration: 2,
+          ease: "power1.out",
+          onComplete: () => {
+            positiveElectrode.removeChild(floatingSkull);
+            skullCount--;
+          },
+        });
+      }, 3000);
+
+      createBubbleInterval();
+
+      // -----------------------------------------
+      // 溶液顏色變淡動畫：從原本的氯化銅色（lightgreen 對應 0x00e0f0）
+      // 逐漸過渡至白色
+      // -----------------------------------------
+      const beaker = this.findComponentByType("燒杯");
+      if (beaker) {
+        // 初始 RGB 值：0x00e0f0 → (0, 224, 240)
+        const colorObj = { r: 0, g: 224, b: 240 };
+        const endRGB = { r: 255, g: 255, b: 255 }; // 白色
+
+        // 將 tween 存入實例變數，方便後續停止
+        this.beakerColorTween = gsap.to(colorObj, {
+          r: endRGB.r,
+          g: endRGB.g,
+          b: endRGB.b,
+          duration: 20,
+          ease: "linear",
+          onUpdate: () => {
+            const r = Math.round(colorObj.r);
+            const g = Math.round(colorObj.g);
+            const b = Math.round(colorObj.b);
+            const newColor = (r << 16) + (g << 8) + b;
+            beaker.tint = newColor;
+          },
+        });
+      }
+    });
+  }
+  // 停止氯化銅專屬動畫效果
+  stopCopperChlorideAnimation() {
+    // 尋找並移除電極區塊
+    const electrodesAndEffects = this.itemCanvas.container.children.filter((child) =>
+      child.children?.some((grandChild) => grandChild.text === "+" || grandChild.text === "-")
+    );
+    electrodesAndEffects.forEach((electrode) => {
+      // 停止該電極相關的所有動畫
+      gsap.killTweensOf(electrode.children);
+      this.itemCanvas.container.removeChild(electrode);
+    });
+
+    // 清除燒杯相關的所有動畫和效果
+    // 停止燒杯顏色動畫
+    const beaker = this.findComponentByType("燒杯");
+    if (beaker) {
+      // 如果有儲存顏色 tween，先停止它
+      if (this.beakerColorTween) {
+        this.beakerColorTween.kill();
+        this.beakerColorTween = null;
+      }
+      // 停止所有與燒杯相關的其他 GSAP 動畫（如果有的話）
+      gsap.killTweensOf(beaker);
+
+      // 重設所有濾鏡和顏色效果
+      beaker.filters = [new ColorMatrixFilter()];
+      beaker.filters[0].brightness(1);
+      beaker.tint = 0xffffff;
+
+      // 根據當前溶液重新設置正確的顏色
+      const solution = this.solutionProperties[this.selectedSolution];
+      if (solution) {
+        setTimeout(() => {
+          this.updateBeakerColor(solution.color);
+        }, 50);
+      }
+    }
   }
 
   // 檢查並處理廣用試紙的連接
@@ -324,8 +551,10 @@ export class ElectrolysisModule {
     if (this.solutionProperties[solutionName]) {
       this.selectedSolution = solutionName;
       this.resetBulbLight();
+
       // 停止所有動畫
       this.stopRandomMovement();
+      this.stopCopperChlorideAnimation();
       this.stopElectrodesMovement();
       this.setElectron.reset();
       this.ionMoving = false;
@@ -516,10 +745,27 @@ export class ElectrolysisModule {
     this.updateElectronAnimation();
   }
 
+  toggleTextVisibility(isChecked) {
+    this.isTextCheckboxChecked = isChecked;
+
+    // 查找所有含有正負符號文字的元素並更新其可見性
+    const allComponents = this.itemCanvas.container.children;
+    allComponents.forEach((component) => {
+      if (component.children) {
+        component.children.forEach((child) => {
+          if (child.text === "+" || child.text === "-") {
+            child.visible = isChecked;
+          }
+        });
+      }
+    });
+  }
+
   // 重置
   reset() {
     this.stopRandomMovement();
     this.stopElectrodesMovement();
+    this.stopCopperChlorideAnimation();
     this.setElectron.reset();
     this.ionAnimationActive = false;
     this.connectedPHPaper = null;
@@ -546,21 +792,21 @@ export class SetElectron {
 
     // 電子配置
     this.electronConfigs = {
-      "電池.png": [
+      電池: [
         { x: -90, y: 0 },
         { x: 0, y: 0 },
         { x: 90, y: 0 },
       ],
-      "燈泡.png": [
+      燈泡: [
         { x: -5, y: 90 },
         { x: 5, y: 90 },
       ],
-      "碳棒.png": [
+      碳棒: [
         { x: 0, y: -50 },
         { x: 0, y: 0 },
         { x: 0, y: 50 },
       ],
-      "燒杯.png": [
+      燒杯: [
         { x: -50, y: 30 },
         { x: 30, y: 30 },
         { x: 110, y: 30 },
@@ -612,7 +858,7 @@ export class SetElectron {
     }
 
     // 對於其他組件，使用預設的配置點
-    const config = this.electronConfigs[component.type + ".png"];
+    const config = this.electronConfigs[component.type];
     if (!config) return;
 
     config.forEach((pos) => {

@@ -38,18 +38,6 @@ export class ItemsCanvas {
         { x: 1, y: 0.5 }, // 右側中間
         { x: 0, y: 0.5 }, // 左側中間
       ],
-
-      "燒杯.png": [
-        { x: 0.3, y: 0.5 }, // 左側中間
-        { x: 0.8, y: 0.5 }, // 右側中間
-      ],
-      "廣用試紙.png": [
-        { x: 0.5, y: 1 }, // 底部中間
-      ],
-      "碳棒.png": [
-        { x: 0.5, y: 1 }, // 底部中間
-        { x: 0.5, y: 0 }, // 頂部中間
-      ],
       "檢流計.png": [
         { x: 1, y: 0.5 }, // 右側中間
         { x: 0, y: 0.5 }, // 左側中間
@@ -219,6 +207,10 @@ export class ItemsCanvas {
             height: sprite.height,
           };
         };
+      } else if (imagePath === "碳棒.png") {
+        const rodBody = new Graphics().rect(-20, -125, 40, 250).fill(0x333333);
+
+        sceneContainer.addChild(rodBody);
       }
 
       sceneContainer.addChild(sprite);
