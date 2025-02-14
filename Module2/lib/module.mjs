@@ -266,22 +266,165 @@ let previousConnections = [];
 const Components = new Container();
 const AllJoints = new Container();
 
-class Module2 {
-  static currentInstance = null;
+class BaseModule {
   constructor() {
-    Module2.currentInstance = this;
     this.container = new Container();
     this.selectedBeaker = null;
     this.isSuccess = false;
-
-    // 新增磅秤實例
-    this.container.addChild(weight.container);
-    weight.container.position.set(1650, 800);
-
-    // 創建主要容器
+    // 建立主要容器結構：設定 Components 的排序、加入 DRAG_AREA、Components 與 AllJoints
     Components.sortableChildren = true;
     this.container.addChild(DRAG_AREA, Components, AllJoints);
+    // 加入離子與電子動畫容器
+    this.container.addChild(ionAnimation.container, electronAnimation.container);
+  }
 
+  // ──────────────────────────────
+  // 動畫切換（共用）
+  toggleIonDisplay(show) {
+    this.isIonCheck = show;
+    if (show && this.isSuccess) {
+      ionAnimation.start();
+    } else {
+      ionAnimation.stop();
+    }
+  }
+
+  toggleElectronDisplay(show) {
+    this.isEleCheck = show;
+    if (show && this.isSuccess) {
+      electronAnimation.start();
+    } else {
+      electronAnimation.stop();
+    }
+  }
+
+  // ──────────────────────────────
+  // 事件綁定（共用）
+  bindBeakerEvent(beaker) {
+    if (beaker && beaker instanceof Beaker) {
+      beaker.eventMode = "static";
+      beaker.cursor = "pointer";
+      beaker.on("pointerdown", () => {
+        this.selectedBeaker = beaker;
+      });
+    }
+  }
+
+  bindBeakerEvents() {
+    if (this.beaker && Array.isArray(this.beaker)) {
+      this.beaker.forEach((b) => this.bindBeakerEvent(b));
+    }
+  }
+
+  // ──────────────────────────────
+  // 處理溶液選擇（共用）
+  handleSolutionSelect(solution) {
+    if (this.selectedBeaker) {
+      this.selectedBeaker.setSolution(solution);
+      this.selectedBeaker = null;
+      this.stopAllAnimations();
+    }
+  }
+
+  // ──────────────────────────────
+  // 停止動畫（共用部分）
+  stopAllAnimations() {
+    this.isSuccess = false;
+    ionAnimation.stop();
+    electronAnimation.stop();
+    // 移除所有燈泡的光效
+    Components.children
+      .filter((c) => c.type === "LightBulb")
+      .forEach((bulb) => {
+        const lightEffect = bulb.children.find((child) => child.name === "lightEffect");
+        if (lightEffect) {
+          bulb.removeChild(lightEffect);
+        }
+      });
+  }
+
+  // ──────────────────────────────
+  // 創建元件（共用）：燒杯、鋅片、銅片
+  createBeaker() {
+    this.beaker = [];
+    for (let i = 0; i < 2; i++) {
+      const b = new Beaker();
+      b.position.set(700 + i * 340, 780);
+      Components.addChild(b);
+      this.beaker.push(b);
+    }
+  }
+
+  createZincStrip() {
+    const zincStrip = new ZincStrip();
+    zincStrip.position.set(650, 660);
+    Components.addChild(zincStrip);
+  }
+
+  createCopperStrip() {
+    const copperStrip = new CopperStrip();
+    copperStrip.position.set(1130, 660);
+    Components.addChild(copperStrip);
+  }
+
+  // ──────────────────────────────
+  // 重置（共用）：清除 Components、停止動畫、重置 itemsList，再重新初始化場景
+  reset() {
+    Components.removeChildren();
+    AllJoints.removeChildren();
+    ionAnimation.stop();
+    electronAnimation.stop();
+    // 注意：如果有模組專屬重置（例如 metalStripAnim.reset()）請在子類中額外處理
+    this.itemsList.reset();
+    this.isSuccess = false;
+    this.initializeScene();
+  }
+
+  // ──────────────────────────────
+  // 連接元件（共用）
+  connectComponents(comp1, comp2, jointIndex) {
+    const joint1 = comp1.joints[jointIndex];
+    const joint2 = comp2.joints[0]; // 預設使用第二個元件的第一個連接點
+    joint1.connectedTo = joint2;
+    joint2.connectedTo = joint1;
+    // 設置視覺效果
+    joint1.tint = 0x00ff00;
+    joint2.tint = 0x00ff00;
+    joint1.scale.set(0.7);
+    joint2.scale.set(0.7);
+  }
+
+  // ──────────────────────────────
+  // 檢查電路組裝（共用邏輯）
+  validateCircuitAssembly() {
+    console.warn("validateCircuitAssembly() 請由子類別實作");
+  }
+
+  // ──────────────────────────────
+  // 建立除錯按鈕（共用 UI 與按鍵綁定，debug scene 由子類別實作）
+  setupDebugButton() {
+    console.warn("setupDebugButton() 請由子類別實作");
+  }
+
+  // 由各模組覆寫：除錯場景
+  setupDebugScene() {
+    console.warn("setupDebugScene() 請由子類別實作");
+  }
+
+  // ──────────────────────────────
+  // Update 方法（預設空實作，Module2 可覆寫）
+  update(time) {}
+}
+
+class Module2 extends BaseModule {
+  static currentInstance = null;
+  constructor() {
+    super();
+    Module2.currentInstance = this;
+    // Module2 特有：加入磅秤實例
+    this.container.addChild(weight.container);
+    weight.container.position.set(1650, 800);
+    // Module2 專用 ItemsList：元件種類包含 U型管、檢流計、電線、燈泡、電池、迴紋針、棉花
     const module2Components = {
       U型管: { texture: "U型管.png", type: "UTube" },
       檢流計: { texture: "檢流計.png", type: "Ammeter" },
@@ -291,14 +434,10 @@ class Module2 {
       迴紋針: { texture: "迴紋針.png", type: "Clip" },
       棉花: { texture: "棉花.png", type: "Cotton" },
     };
-
-    // 創建並定位ItemsList
     this.itemsList = new ItemsList(Object.keys(module2Components));
     this.container.addChild(this.itemsList.container);
     this.itemsList.container.position.set(20, 80);
-
-    this.container.addChild(ionAnimation.container);
-    this.container.addChild(electronAnimation.container);
+    this.itemsList.setModule2(this);
 
     this.initializeScene();
   }
@@ -320,46 +459,9 @@ class Module2 {
 
   // 重置方法
   reset() {
-    // 清除所有組件
-    Components.removeChildren();
-    AllJoints.removeChildren();
-    ionAnimation.stop();
-    electronAnimation.stop();
+    super.reset();
+    // Module2 額外重置
     metalStripAnim.reset();
-    this.itemsList.reset();
-    this.isSuccess = false;
-    // 重新初始化場景
-    this.initializeScene();
-  }
-
-  toggleIonDisplay(show) {
-    this.isIonCheck = show;
-    if (show && this.isSuccess) {
-      ionAnimation.start();
-    } else {
-      ionAnimation.stop();
-    }
-  }
-
-  toggleElectronDisplay(show) {
-    this.isEleCheck = show;
-    if (show && this.isSuccess) {
-      electronAnimation.start();
-    } else {
-      electronAnimation.stop();
-    }
-  }
-
-  // 新增綁定燒杯事件的方法
-  bindBeakerEvent(beaker) {
-    if (beaker && beaker instanceof Beaker) {
-      // 添加類型檢查
-      beaker.eventMode = "static";
-      beaker.cursor = "pointer";
-      beaker.on("pointerdown", () => {
-        this.selectedBeaker = beaker;
-      });
-    }
   }
 
   bindUTubeEvent(utube) {
@@ -372,28 +474,10 @@ class Module2 {
     }
   }
 
-  // 修改原有的批量綁定方法
-  bindBeakerEvents() {
-    if (this.beaker) {
-      this.beaker.forEach((beaker) => this.bindBeakerEvent(beaker));
-    }
-  }
-
-  // 處理溶液選擇
-  handleSolutionSelect(solution) {
-    if (this.selectedBeaker) {
-      this.selectedBeaker.setSolution(solution);
-      this.selectedBeaker = null;
-      this.stopAllAnimations();
-    }
-  }
-
   stopAllAnimations() {
-    this.isSuccess = false;
-    ionAnimation.stop();
-    electronAnimation.stop();
+    super.stopAllAnimations();
+    // Module2：停止 metalStripAnim 並重置檢流計指針
     metalStripAnim.stop();
-    // 重置檢流計
     const ammeter = Components.children.find((c) => c.type === "Ammeter");
     if (ammeter) {
       const pin = ammeter.children.find((child) => child instanceof Graphics);
@@ -402,34 +486,6 @@ class Module2 {
         gsap.killTweensOf(pin);
       }
     }
-    // 隱藏所有燈泡的光效果
-    Components.children
-      .filter((c) => c.type === "LightBulb")
-      .forEach((bulb) => {
-        const lightEffect = bulb.children.find((child) => child.name === "lightEffect");
-        if (lightEffect) {
-          bulb.removeChild(lightEffect);
-        }
-      });
-  }
-
-  createBeaker() {
-    this.beaker = [];
-    for (let i = 0; i < 2; i++) {
-      this.beaker[i] = new Beaker();
-      this.beaker[i].position.set(700 + i * 340, 780);
-      Components.addChild(this.beaker[i]);
-    }
-  }
-  createZincStrip() {
-    const zincStrip = new ZincStrip();
-    zincStrip.position.set(650, 660);
-    Components.addChild(zincStrip);
-  }
-  createCopperStrip() {
-    const copperStrip = new CopperStrip();
-    copperStrip.position.set(1130, 660);
-    Components.addChild(copperStrip);
   }
 
   // 新增檢查電路組裝的方法
@@ -826,39 +882,17 @@ class Module2 {
     }, 100);
   }
 
-  connectComponents(comp1, comp2, jointIndex) {
-    // 找到最近的連接點
-    const joint1 = comp1.joints[jointIndex];
-    const joint2 = comp2.joints[0]; // 使用第一個連接點
-
-    // 模擬連接
-    joint1.connectedTo = joint2;
-    joint2.connectedTo = joint1;
-
-    // 設置視覺效果
-    joint1.tint = 0x00ff00;
-    joint2.tint = 0x00ff00;
-    joint1.scale.set(0.7);
-    joint2.scale.set(0.7);
-  }
-
   update(time) {
     weight.checkWeight();
   }
 }
 
-class Module4 {
+class Module4 extends BaseModule {
   static currentInstance = null;
   constructor() {
+    super();
     Module4.currentInstance = this;
-    this.container = new Container();
-    this.selectedBeaker = null;
-    this.isSuccess = false;
-
-    // 創建主要容器
-    Components.sortableChildren = true;
-    this.container.addChild(DRAG_AREA, Components, AllJoints);
-
+    // Module4 專用 ItemsList：元件種類包含 電線、燈泡、電池、燒杯、碳棒、鋅片
     const module4Components = {
       電線: { texture: "電線.png", type: "Wire" },
       燈泡: { texture: "燈泡.png", type: "LightBulb" },
@@ -867,147 +901,29 @@ class Module4 {
       碳棒: { texture: "碳棒.png", type: "CarbonRod" },
       鋅片: { texture: "鋅片.png", type: "ZincStrip" },
     };
-
-    // 創建並定位ItemsList
     this.itemsList = new ItemsList(Object.keys(module4Components));
     this.container.addChild(this.itemsList.container);
     this.itemsList.container.position.set(20, 80);
-    // 設置 ItemsList 的引用
+    // 若有需要，也可以設定 ItemsList 與 Module4 的關聯
     this.itemsList.setModule2(this);
-
-    this.container.addChild(ionAnimation.container);
-    this.container.addChild(electronAnimation.container);
 
     this.initializeScene();
   }
 
   static getInstance() {
-    return Module2.currentInstance;
+    return Module4.currentInstance;
   }
 
   // 新增初始化場景方法
   initializeScene() {
-    this.createZincStrip();
-    this.createCopperStrip();
-    this.createBeaker();
     this.bindBeakerEvent();
     this.bindBeakerEvents();
-    this.bindUTubeEvent();
     this.setupDebugButton();
   }
 
   // 重置方法
   reset() {
-    // 清除所有組件
-    Components.removeChildren();
-    AllJoints.removeChildren();
-    ionAnimation.stop();
-    electronAnimation.stop();
-    metalStripAnim.reset();
-    this.itemsList.reset();
-    this.isSuccess = false;
-    // 重新初始化場景
-    this.initializeScene();
-  }
-
-  toggleIonDisplay(show) {
-    this.isIonCheck = show;
-    if (show && this.isSuccess) {
-      ionAnimation.start();
-    } else {
-      ionAnimation.stop();
-    }
-  }
-
-  toggleElectronDisplay(show) {
-    this.isEleCheck = show;
-    if (show && this.isSuccess) {
-      electronAnimation.start();
-    } else {
-      electronAnimation.stop();
-    }
-  }
-
-  // 新增綁定燒杯事件的方法
-  bindBeakerEvent(beaker) {
-    if (beaker && beaker instanceof Beaker) {
-      // 添加類型檢查
-      beaker.eventMode = "static";
-      beaker.cursor = "pointer";
-      beaker.on("pointerdown", () => {
-        this.selectedBeaker = beaker;
-      });
-    }
-  }
-
-  bindUTubeEvent(utube) {
-    if (utube && utube instanceof UTube) {
-      utube.eventMode = "static";
-      utube.cursor = "pointer";
-      utube.on("pointerdown", () => {
-        this.selectedBeaker = utube;
-      });
-    }
-  }
-
-  // 修改原有的批量綁定方法
-  bindBeakerEvents() {
-    if (this.beaker) {
-      this.beaker.forEach((beaker) => this.bindBeakerEvent(beaker));
-    }
-  }
-
-  // 處理溶液選擇
-  handleSolutionSelect(solution) {
-    if (this.selectedBeaker) {
-      this.selectedBeaker.setSolution(solution);
-      this.selectedBeaker = null;
-      this.stopAllAnimations();
-    }
-  }
-
-  stopAllAnimations() {
-    this.isSuccess = false;
-    ionAnimation.stop();
-    electronAnimation.stop();
-    metalStripAnim.stop();
-    // 重置檢流計
-    const ammeter = Components.children.find((c) => c.type === "Ammeter");
-    if (ammeter) {
-      const pin = ammeter.children.find((child) => child instanceof Graphics);
-      if (pin) {
-        pin.rotation = 0;
-        gsap.killTweensOf(pin);
-      }
-    }
-    // 隱藏所有燈泡的光效果
-    Components.children
-      .filter((c) => c.type === "LightBulb")
-      .forEach((bulb) => {
-        const lightEffect = bulb.children.find((child) => child.name === "lightEffect");
-        if (lightEffect) {
-          bulb.removeChild(lightEffect);
-        }
-      });
-  }
-
-  createBeaker() {
-    this.beaker = [];
-    for (let i = 0; i < 2; i++) {
-      this.beaker[i] = new Beaker();
-      this.beaker[i].position.set(700 + i * 340, 780);
-      Components.addChild(this.beaker[i]);
-    }
-  }
-  createZincStrip() {
-    const zincStrip = new ZincStrip();
-    zincStrip.position.set(650, 660);
-    Components.addChild(zincStrip);
-  }
-  createCopperStrip() {
-    const copperStrip = new CopperStrip();
-    copperStrip.position.set(1130, 660);
-    Components.addChild(copperStrip);
+    super.reset();
   }
 
   // 新增檢查電路組裝的方法
@@ -1267,28 +1183,6 @@ class Module4 {
     return { success: true, message: "組裝成功！" };
   }
 
-  updateAmmeterPointer() {
-    const ammeter = Components.children.find((c) => c.type === "Ammeter");
-    if (!ammeter) return;
-
-    const pin = ammeter.children.find((child) => child instanceof Graphics);
-    if (pin) {
-      gsap.to(pin, {
-        rotation: Math.PI / 3,
-        duration: 1,
-        onComplete: () => {
-          gsap.to(pin, {
-            rotation: Math.PI / 2.5,
-            duration: 1,
-            yoyo: true,
-            repeat: -1,
-            ease: "sine.inOut",
-          });
-        },
-      });
-    }
-  }
-
   setupDebugButton() {
     // 創建除錯按鈕
     const debugButton = new Container();
@@ -1310,47 +1204,11 @@ class Module4 {
 
     debugButton.on("pointerdown", () => this.setupDebugScene());
     this.container.addChild(debugButton);
-
-    // 隱藏除錯按鈕，並監聽鍵盤事件，只有同時按下 Shift + D + B 才會顯示
-    debugButton.visible = false;
-    const keysPressed = { shift: false, d: false, b: false };
-
-    const onKeyDown = (e) => {
-      const key = e.key.toLowerCase();
-      if (key === "shift") keysPressed.shift = true;
-      if (key === "d") keysPressed.d = true;
-      if (key === "b") keysPressed.b = true;
-      if (keysPressed.shift && keysPressed.d && keysPressed.b) {
-        debugButton.visible = true;
-      }
-    };
-
-    const onKeyUp = (e) => {
-      const key = e.key.toLowerCase();
-      if (key === "shift") keysPressed.shift = false;
-      if (key === "d") keysPressed.d = false;
-      if (key === "b") keysPressed.b = false;
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
   }
 
   setupDebugScene() {
     // 清除現有組件
     Components.removeChildren();
-
-    // 創建並放置檢流計
-    const ammeter = new Ammeter();
-    ammeter.position.set(900, 300);
-    Components.addChild(ammeter);
-
-    // 創建並放置 U型管
-    const uTube = new UTube();
-    uTube.position.set(900, 660);
-    uTube.solution = "硝酸鉀";
-    uTube.solutionText.text = "溶液：硝酸鉀";
-    Components.addChild(uTube);
 
     // 創建並放置鋅片
     const zincStrip = new ZincStrip();
@@ -1404,25 +1262,7 @@ class Module4 {
     }, 100);
   }
 
-  connectComponents(comp1, comp2, jointIndex) {
-    // 找到最近的連接點
-    const joint1 = comp1.joints[jointIndex];
-    const joint2 = comp2.joints[0]; // 使用第一個連接點
-
-    // 模擬連接
-    joint1.connectedTo = joint2;
-    joint2.connectedTo = joint1;
-
-    // 設置視覺效果
-    joint1.tint = 0x00ff00;
-    joint2.tint = 0x00ff00;
-    joint1.scale.set(0.7);
-    joint2.scale.set(0.7);
-  }
-
-  update(time) {
-    weight.checkWeight();
-  }
+  update(time) {}
 }
 
 class Battery extends Container {
@@ -2662,7 +2502,7 @@ class ItemsList {
   constructor(components) {
     this.container = new Container();
     this.items = [];
-    this.module2 = null;
+    this.module = null;
 
     // All available components
     this.availableComponents = {
@@ -2694,8 +2534,8 @@ class ItemsList {
     this.createItems();
   }
 
-  setModule2(module2) {
-    this.module2 = module2;
+  setModule2(module) {
+    this.module = module;
   }
 
   // Call this method on reset to re-enable single-use items
@@ -2829,8 +2669,8 @@ class ItemsList {
         break;
       case "UTube":
         component = new UTube();
-        if (this.module2) {
-          this.module2.bindUTubeEvent(component);
+        if (this.module) {
+          this.module.bindUTubeEvent(component);
         }
         break;
       case "Ammeter":
@@ -2844,8 +2684,8 @@ class ItemsList {
         break;
       case "Beaker":
         component = new Beaker();
-        if (this.module2) {
-          this.module2.bindBeakerEvent(component);
+        if (this.module) {
+          this.module.bindBeakerEvent(component);
         }
         break;
       case "CarbonRod":
