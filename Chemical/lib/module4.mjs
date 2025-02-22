@@ -233,12 +233,9 @@ function recheckAllConnections() {
       module4Instance.stopAllAnimations();
     }
   }
-
-  // 在檢查完所有連接後呼叫印出函數
-  printConnections();
 }
 
-function printConnections() {
+/*function printConnections() {
   console.log("=== Current Connections ===");
 
   Components.children.forEach((component, index) => {
@@ -254,7 +251,7 @@ function printConnections() {
     }
   });
   console.log("\n======================");
-}
+}*/
 
 function areJointsOverlapping(joint1Pos, joint2Pos) {
   const distance = Math.sqrt(Math.pow(joint1Pos.x - joint2Pos.x, 2) + Math.pow(joint1Pos.y - joint2Pos.y, 2));
@@ -583,12 +580,12 @@ class Module4 {
 
   animateZincPlating(electrode) {
     // 定義鋅層尺寸
-    const width = 60;
+    const width = 62;
 
     // 在電極上創建一個鋅層圖形
     // 使用灰銀色表示鋅
     const zincLayer = new Graphics()
-      .rect(-(width + 4) / 2, 58, width + 4, 68) // 相對於電極的本地座標
+      .rect(-width / 2, 58, width, 68) // 相對於電極的本地座標
       .fill(0x808080);
     zincLayer.alpha = 0;
     electrode.addChild(zincLayer);
@@ -859,7 +856,7 @@ class Beaker extends Container {
     this.solution = solutionType;
     const color = this.getSolutionColor(solutionType);
     this.updateBeakerColor(color);
-    this.solutionText.text = `溶液：${solutionType || "點擊後選擇右側列表"}`;
+    this.solutionText.text = `溶液：${solutionType || "點擊容器後選擇右側列表"}`;
   }
 
   getSolutionColor(solutionType) {
@@ -1432,7 +1429,7 @@ class ItemsList {
             }
 
             // 原有的限制單一使用元件邏輯
-            if (item.componentType === "Utube" || item.componentType === "LightBulb" || item.componentType === "Battery") {
+            if (item.componentType === "UTube" || item.componentType === "LightBulb" || item.componentType === "Battery") {
               // 只隱藏除了第一個元素 (itemBg) 以外的所有項目
               for (let i = 1; i < item.children.length; i++) {
                 item.children[i].visible = false;

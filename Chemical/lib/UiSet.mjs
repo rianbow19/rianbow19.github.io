@@ -9,10 +9,10 @@ export class DropdownMenu {
       width = 400,
       items = [],
       label = "Select",
-      prefix = "", // 新增：標題前綴
+      prefix = "",
       backgroundColor = 0xffffff,
       borderColor = 0x999999,
-      hoverColor = 0xf0f0f0, // 新增：懸停顏色
+      hoverColor = 0xf0f0f0,
       columns = 1,
       columnGap = 3,
     } = options;
@@ -24,9 +24,13 @@ export class DropdownMenu {
     this.isOpen = false;
     this.width = width;
     this.itemHeight = 80;
-    this.prefix = prefix; // 保存前綴
+    this.prefix = prefix;
+    this.selectedItem = null;
+    this.itemBackgrounds = new Map();
+    this.columns = columns;
+    this.columnGap = columnGap;
+    this.columnWidth = (width - (columns - 1) * columnGap) / columns;
 
-    const columnWidth = (width - (columns - 1) * columnGap) / columns;
     const itemsPerColumn = Math.ceil(this.items.length / columns);
 
     this.button = new Container();
@@ -36,28 +40,19 @@ export class DropdownMenu {
     buttonBg.fill(backgroundColor);
     buttonBg.stroke({ color: borderColor, width: 2 });
 
-    const arrow = new Graphics();
-    arrow.poly([0, 0, 20, 20, 40, 0]);
-    arrow.fill(0xcccccc);
-    arrow.pivot.x = 20;
-    arrow.pivot.y = 10;
-    arrow.x = width - 40;
-    arrow.y = this.itemHeight / 2;
-
     const buttonText = new Text({ text: label, style: defaultStyle2 });
     buttonText.x = 20;
     buttonText.y = this.itemHeight / 2 - buttonText.height / 2;
 
-    this.button.addChild(buttonBg, arrow, buttonText);
+    this.button.addChild(buttonBg, buttonText);
     this.container.addChild(this.button);
 
     this.button.eventMode = "static";
     this.button.cursor = "pointer";
-    // 移除 pointerdown 事件監聽
 
     this.menuContainer = new Container();
     this.menuContainer.y = this.itemHeight + 2;
-    this.menuContainer.visible = true; // 改為始終可見
+    this.menuContainer.visible = true;
     this.container.addChild(this.menuContainer);
 
     this.items.forEach((item, index) => {
@@ -65,13 +60,14 @@ export class DropdownMenu {
       const rowIndex = index % itemsPerColumn;
 
       const itemContainer = new Container();
-      itemContainer.x = columnIndex * (columnWidth + columnGap);
+      itemContainer.x = columnIndex * (this.columnWidth + columnGap);
       itemContainer.y = rowIndex * (this.itemHeight - 18);
 
       const itemBg = new Graphics();
-      itemBg.roundRect(0, 0, columnWidth, this.itemHeight - 20, 10);
+      itemBg.roundRect(0, 0, this.columnWidth, this.itemHeight - 20, 10);
       itemBg.stroke({ color: borderColor, width: 2 });
       itemBg.fill(backgroundColor);
+      this.itemBackgrounds.set(item, itemBg);
 
       const itemText = new Text({ text: item, style: defaultStyle2 });
       itemText.x = 20;
@@ -80,25 +76,26 @@ export class DropdownMenu {
       itemContainer.addChild(itemBg, itemText);
       this.menuContainer.addChild(itemContainer);
 
-      // 添加懸停效果
       itemContainer.eventMode = "static";
       itemContainer.cursor = "pointer";
 
-      // 懸停效果：根據 item 判斷使用不同顏色
       itemContainer.on("pointerover", () => {
-        itemBg.clear();
-        itemBg.roundRect(0, 0, columnWidth, this.itemHeight - 20, 10);
-        itemBg.stroke({ color: borderColor, width: 2 });
-        // 如果 item 為 "氯化銅" 則使用特殊顏色，否則使用預設 hoverColor
-        const fillColor = item === "氯化銅" ? 0xadd8e6 : hoverColor;
-        itemBg.fill(fillColor);
+        if (item !== this.selectedItem) {
+          itemBg.clear();
+          itemBg.roundRect(0, 0, this.columnWidth, this.itemHeight - 20, 10);
+          itemBg.stroke({ color: borderColor, width: 2 });
+          const fillColor = item === "氯化銅" ? 0xadd8e6 : hoverColor;
+          itemBg.fill(fillColor);
+        }
       });
 
       itemContainer.on("pointerout", () => {
-        itemBg.clear();
-        itemBg.roundRect(0, 0, columnWidth, this.itemHeight - 20, 10);
-        itemBg.stroke({ color: borderColor, width: 2 });
-        itemBg.fill(backgroundColor);
+        if (item !== this.selectedItem) {
+          itemBg.clear();
+          itemBg.roundRect(0, 0, this.columnWidth, this.itemHeight - 20, 10);
+          itemBg.stroke({ color: borderColor, width: 2 });
+          itemBg.fill(backgroundColor);
+        }
       });
 
       itemContainer.on("pointerup", () => {
@@ -109,8 +106,25 @@ export class DropdownMenu {
   }
 
   selectItem(item) {
+    if (this.selectedItem && this.itemBackgrounds.has(this.selectedItem)) {
+      const prevBg = this.itemBackgrounds.get(this.selectedItem);
+      prevBg.clear();
+      prevBg.roundRect(0, 0, this.columnWidth, this.itemHeight - 20, 10);
+      prevBg.stroke({ color: 0x999999, width: 2 });
+      prevBg.fill(0xffffff);
+    }
+
+    if (this.itemBackgrounds.has(item)) {
+      const newBg = this.itemBackgrounds.get(item);
+      newBg.clear();
+      newBg.roundRect(0, 0, this.columnWidth, this.itemHeight - 20, 10);
+      newBg.stroke({ color: 0x999999, width: 2 });
+      const fillColor = item === "氯化銅" ? 0xadd8e6 : 0xdddddd;
+      newBg.fill(fillColor);
+    }
+
+    this.selectedItem = item;
     const buttonText = this.button.children[1];
-    // Update button text without closing dropdown
     buttonText.text = this.prefix ? `${this.prefix}：${item}` : item;
 
     if (this.onSelect) {
@@ -166,7 +180,7 @@ export function createOptionGroup(options) {
   const width = 500;
   const height = 100;
   const bgHeight = 110 * options.length;
-  const yOffset = options.length === 1 ? -5 : ((options.length - 1) * height - (options.length === 2 ? 20 : 10)) / 2;
+  const yOffset = options.length === 1 ? -5 : ((options.length - 1) * height - (options.length === 3 ? 30 : 20)) / 2;
 
   const groupBg = new Graphics();
   groupBg.roundRect(-width / 2, (-height / 2) * options.length, width, bgHeight, 20);

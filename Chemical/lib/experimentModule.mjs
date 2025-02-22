@@ -193,25 +193,16 @@ export class ElectrolysisModule {
       // 負極：銅附著沉積動畫（紅棕色）
       // -----------------------------------------
       const copperDeposition = new Graphics();
-      // 初始在碳棒底部，寬40、高0
-      copperDeposition.rect(-2, 250, 42, 0);
+      copperDeposition.rect(-11, 143, 62, 105);
       copperDeposition.fill(0x8b4513); // 可調整成理想的紅棕色
-      copperDeposition.alpha = 0.5;
+      copperDeposition.alpha = 0;
       negativeElectrode.addChild(copperDeposition);
-      const progress = { height: 0, y: 250 }; // 從底部 250 開始
 
-      // 利用 gsap tween 該物件，並在 onUpdate 裡更新 Graphics
-      gsap.to(progress, {
-        height: 110, // 目標高度80
-        y: 140, // 目標位置 170
+      // 只做淡入動畫
+      gsap.to(copperDeposition, {
+        alpha: 0.5,
         duration: 20,
         ease: "linear",
-        onUpdate: () => {
-          // 重新繪製 copperDeposition
-          copperDeposition.clear();
-          copperDeposition.rect(-2, progress.y, 44, progress.height);
-          copperDeposition.fill(0x8b4513);
-        },
       });
 
       // -----------------------------------------
@@ -225,7 +216,7 @@ export class ElectrolysisModule {
         bubble.circle(0, 0, 5);
         bubble.fill(0xadff2f); // 黃綠色
         // 隨機在電極區塊寬度內
-        bubble.x = Math.random() * 50;
+        bubble.x = Math.random() * 70 - 15;
         // 從底部開始產生
         bubble.y = 250;
         return bubble;

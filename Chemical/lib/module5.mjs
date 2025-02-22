@@ -235,27 +235,6 @@ function recheckAllConnections() {
       module5Instance.stopAllAnimations();
     }
   }
-
-  // 在檢查完所有連接後呼叫印出函數
-  printConnections();
-}
-
-function printConnections() {
-  console.log("=== Current Connections ===");
-
-  Components.children.forEach((component, index) => {
-    if (component.joints.some((joint) => joint.connectedTo)) {
-      console.log(`\n${component.type} #${index}:`);
-      component.joints.forEach((joint, jointIndex) => {
-        if (joint.connectedTo) {
-          const connectedComponent = joint.connectedTo.parent;
-          const connectedIndex = Components.children.indexOf(connectedComponent);
-          console.log(`  Joint ${jointIndex} -> ${connectedComponent.type} #${connectedIndex}`);
-        }
-      });
-    }
-  });
-  console.log("\n======================");
 }
 
 function areJointsOverlapping(joint1Pos, joint2Pos) {
@@ -835,10 +814,10 @@ class Module5 {
 
   // 銅沉積動畫效果
   animateCopperDeposition(electrode) {
-    const width = 60;
+    const width = 62;
     // 建立銅層圖形作為電極的child
     const copperLayer = new Graphics()
-      .rect(-(width + 4) / 2, 58, width + 4, 68) // 相對於電極的本地座標
+      .rect(-width / 2, 58, width, 68) // 相對於電極的本地座標
       .fill(0x8b4513);
     copperLayer.alpha = 0;
     electrode.addChild(copperLayer);
@@ -846,7 +825,7 @@ class Module5 {
     // 銅層逐漸顯現動畫
     const anim = gsap.to(copperLayer, {
       alpha: 1,
-      duration: 5,
+      duration: 20,
       ease: "linear",
     });
     this.electrodeAnimations.push(anim);
@@ -861,12 +840,12 @@ class Module5 {
     const progressObj = { progress: 0 };
     const anim = gsap.to(progressObj, {
       progress: 1,
-      duration: 5,
+      duration: 20,
       ease: "linear",
       onUpdate: () => {
         const width = 60;
         const mainHeight = 250;
-        const addHeight = 65;
+        const addHeight = 67;
 
         electrode.body.clear();
 
@@ -878,14 +857,35 @@ class Module5 {
 
         electrode.body.fill(0xb87333);
 
+        // 計算底部矩形顏色的漸變
+        const startColor = 0xb87333;
+        const endColor = 0x8b4513;
+
+        // 將16進制顏色轉換為RGB
+        const startR = (startColor >> 16) & 0xff;
+        const startG = (startColor >> 8) & 0xff;
+        const startB = startColor & 0xff;
+
+        const endR = (endColor >> 16) & 0xff;
+        const endG = (endColor >> 8) & 0xff;
+        const endB = endColor & 0xff;
+
+        // 根據進度計算當前顏色
+        const currentR = Math.round(startR + (endR - startR) * progressObj.progress);
+        const currentG = Math.round(startG + (endG - startG) * progressObj.progress);
+        const currentB = Math.round(startB + (endB - startB) * progressObj.progress);
+
+        // 將RGB轉回16進制
+        const currentColor = (currentR << 16) + (currentG << 8) + currentB;
+
         // 底部矩形：寬度隨進度減少
-        const currentWidth = width * (1 - progressObj.progress * 0.08);
+        const currentWidth = width * (1 - progressObj.progress * 0.05);
         electrode.body.moveTo(-currentWidth / 2, mainHeight / 2 - addHeight);
         electrode.body.lineTo(currentWidth / 2, mainHeight / 2 - addHeight);
         electrode.body.lineTo(currentWidth / 2, mainHeight / 2);
         electrode.body.lineTo(-currentWidth / 2, mainHeight / 2);
 
-        electrode.body.fill(0x8b4513);
+        electrode.body.fill(currentColor);
       },
     });
 
@@ -915,7 +915,7 @@ class Module5 {
       r: endRGB.r,
       g: endRGB.g,
       b: endRGB.b,
-      duration: 15,
+      duration: 20,
       ease: "linear",
       onUpdate: () => {
         const r = Math.round(colorObj.r);
@@ -1223,7 +1223,7 @@ class Beaker extends Container {
     this.solution = solutionType;
     const color = this.getSolutionColor(solutionType);
     this.updateBeakerColor(color);
-    this.solutionText.text = `溶液：${solutionType || "點擊後選擇右側列表"}`;
+    this.solutionText.text = `溶液：${solutionType || "點擊容器後選擇右側列表"}`;
   }
 
   getSolutionColor(solutionType) {

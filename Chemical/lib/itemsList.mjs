@@ -210,12 +210,25 @@ export class ItemsList {
 
   // 開始拖動項目。
   onDragStart(event, container) {
+    // 如果是燒杯，直接放置在畫面中央偏下
+    if (container.imagePath === "燒杯.png") {
+      const centerPosition = {
+        x: 900,
+        y: 700,
+      };
+      this.itemCanvas.createSceneItem(container.imagePath, centerPosition);
+      this.itemCanvas.beakerPlaced = true;
+      this.restrictedItems["燒杯.png"] = true;
+      this.updateDisplayedImages();
+      return;
+    }
+
+    // 其他物品的正常拖曳邏輯
     if (this.isDragging) return;
 
     container.alpha = 0.5;
     const localPos = event.getLocalPosition(this.container);
 
-    // 儲存拖曳起始位置
     this.dragStartPosition = { x: localPos.x, y: localPos.y };
 
     this.draggedSprite = this.createDraggedItem(container, {
@@ -230,6 +243,12 @@ export class ItemsList {
 
   // 結束拖動項目。
   onDragEnd(event, container) {
+    // 如果是燒杯，直接返回（因為已經在onDragStart中處理）
+    if (container.imagePath === "燒杯.png") {
+      return;
+    }
+
+    // 其他物品的正常拖曳結束邏輯
     if (!this.isDragging) return;
 
     container.alpha = 1;

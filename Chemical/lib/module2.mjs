@@ -233,27 +233,6 @@ function recheckAllConnections() {
       module2Instance.stopAllAnimations();
     }
   }
-
-  // 在檢查完所有連接後呼叫印出函數
-  printConnections();
-}
-
-function printConnections() {
-  console.log("=== Current Connections ===");
-
-  Components.children.forEach((component, index) => {
-    if (component.joints.some((joint) => joint.connectedTo)) {
-      console.log(`\n${component.type} #${index}:`);
-      component.joints.forEach((joint, jointIndex) => {
-        if (joint.connectedTo) {
-          const connectedComponent = joint.connectedTo.parent;
-          const connectedIndex = Components.children.indexOf(connectedComponent);
-          console.log(`  Joint ${jointIndex} -> ${connectedComponent.type} #${connectedIndex}`);
-        }
-      });
-    }
-  });
-  console.log("\n======================");
 }
 
 function areJointsOverlapping(joint1Pos, joint2Pos) {
@@ -951,7 +930,7 @@ class Beaker extends Container {
 
     // 創建溶液名稱文字
     this.solutionText = new Text({
-      text: "溶液：點擊後選擇右側列表",
+      text: "溶液：點擊容器後選擇右側列表",
       style: defaultStyle3,
     });
     this.solutionText.anchor.set(0.5, 0);
@@ -981,7 +960,7 @@ class Beaker extends Container {
     this.solution = solutionType;
     const color = this.getSolutionColor(solutionType);
     this.updateBeakerColor(color);
-    this.solutionText.text = `溶液：${solutionType || "點擊後選擇右側列表"}`;
+    this.solutionText.text = `溶液：${solutionType || "點擊容器後選擇右側列表"}`;
   }
 
   // 根據溶液類型取得對應顏色
@@ -1173,7 +1152,7 @@ class UTube extends Container {
 
     // 創建溶液名稱文字
     this.solutionText = new Text({
-      text: "溶液：點擊後選擇右側列表",
+      text: "溶液：點擊容器後選擇右側列表",
       style: defaultStyle3,
     });
     this.solutionText.anchor.set(0.5, 0);
@@ -1212,7 +1191,7 @@ class UTube extends Container {
     this.solution = solutionType;
     const color = this.getSolutionColor(solutionType);
     this.updateBeakerColor(color);
-    this.solutionText.text = `溶液：${solutionType || "點擊後選擇右側列表"}`;
+    this.solutionText.text = `溶液：${solutionType || "點擊容器後選擇右側列表"}`;
   }
 
   // 根據溶液類型取得對應顏色
@@ -2183,7 +2162,7 @@ class Weight {
     // 設定檢測區域的互動
     this.hitArea.eventMode = "static";
     this.hitArea.on("pointerover", this.checkWeight.bind(this));
-    this.hitArea.on("pointerout", () => (this.weightText.text = "測量金屬片重量"));
+    this.hitArea.on("pointerout", () => (this.weightText.text = "測量金屬棒重量"));
   }
 
   isInWeightArea(component) {
