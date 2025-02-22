@@ -27,6 +27,8 @@ export class ElectrolysisModule {
     this.randomAnimations = []; // 用於儲存隨機移動的動畫
     this.electrodesAnimations = []; // 用於儲存電極移動的動畫
 
+    this.electrodeLabels = []; // 用於儲存電極標籤
+
     // 溶液特性配置
     this.solutionProperties = {
       純水: {
@@ -168,6 +170,7 @@ export class ElectrolysisModule {
       negativeElectrode.addChild(negLabel);
       negativeElectrode.x = this.moduleSetup.centerX - 90;
       negativeElectrode.y = this.moduleSetup.centerY + 80;
+
       negLabel.visible = this.isTextCheckboxChecked; // 加入這行
 
       // 建立正極（右側碳棒）
@@ -178,6 +181,7 @@ export class ElectrolysisModule {
       positiveElectrode.addChild(posLabel);
       positiveElectrode.x = this.moduleSetup.centerX + 100;
       positiveElectrode.y = this.moduleSetup.centerY + 80;
+
       posLabel.visible = this.isTextCheckboxChecked; // 加入這行
 
       // 將電極區塊加入畫布（或實驗模組容器）
@@ -410,15 +414,215 @@ export class ElectrolysisModule {
   updatePHPaperColor(color) {
     if (!this.connectedPHPaper) return;
 
-    // 從連接的 pH 試紙獲取測試條
+    // 從連接的廣用試紙中獲取試紙部分
     const testStrip = this.connectedPHPaper.testStrip;
     if (!testStrip) return;
 
     // 將顏色名稱轉換為十六進制
     const colorHex = this.colorToHex(color);
 
-    // 更新測試條顏色
-    testStrip.clear().rect(-40, 0, 80, 150).fill(colorHex);
+    // 如果試紙尚未初始化動畫屬性，進行初始化
+    if (!testStrip.hasOwnProperty("targetColor")) {
+      testStrip.targetColor = this.colorToHex("green"); // 預設綠色
+      testStrip.currentColor = this.colorToHex("green");
+      testStrip.colorProgress = 0;
+      testStrip.colorTween = null;
+    }
+
+    // 如果已經是相同顏色且動畫已完成，則不執行
+    if (testStrip.targetColor === colorHex && testStrip.colorProgress >= 1) return;
+
+    // 設定目標顏色
+    testStrip.targetColor = colorHex;
+
+    // 如果已有動畫在執行，先停止
+    if (testStrip.colorTween) {
+      testStrip.colorTween.kill();
+      testStrip.colorTween = null;
+    }
+
+    // 對於所有非綠色的顏色，開始由下而上的動畫
+    testStrip.currentColor = colorHex;
+    testStrip.colorProgress = 0; // 重置進度
+
+    // 建立動畫
+    testStrip.colorTween = gsap.to(testStrip, {
+      colorProgress: 1,
+      duration: 1.5,
+      ease: "linear",
+      onUpdate: () => {
+        this.drawTestStrip(testStrip);
+      },
+    });
+  }
+
+  // 輔助方法：根據當前動畫進度繪製試紙
+  drawTestStrip(testStrip) {
+    testStrip.clear();
+
+    // 如果是綠色或正在動畫中
+    if (testStrip.targetColor === this.colorToHex("green")) {
+      // 繪製綠色背景
+      testStrip.rect(-40, 0, 80, 150).fill({ color: this.colorToHex("green") });
+    } else if (testStrip.colorProgress < 1) {
+      // 動畫過程中：從綠色背景開始
+      testStrip.rect(-40, 0, 80, 150).fill({ color: this.colorToHex("green") });
+
+      // 根據進度計算高度（由下往上）
+      const animatedHeight = testStrip.colorProgress * 150;
+      const yPosition = 150 - animatedHeight;
+
+      // 從底部開始繪製有顏色的部分
+      testStrip.rect(-40, yPosition, 80, animatedHeight).fill({ color: testStrip.currentColor });
+    } else {
+      // 動畫完成：完全填充目標顏色
+      testStrip.rect(-40, 0, 80, 150).fill({ color: testStrip.currentColor });
+    }
+  }
+
+  // 處理廣用試紙的連接/斷開
+  handlePHPaperConnection() {
+    const phPaper = this.findComponentByType("廣用試紙");
+    const beaker = this.findComponentByType("燒杯");
+
+    if (!phPaper || !beaker) return;
+
+    // 檢查廣用試紙是否與燒杯重疊
+    const paperBounds = phPaper.getBounds();
+    const beakerBounds = {
+      x: beaker.x - 50,
+      y: beaker.y - 100,
+      width: 250,
+      height: 250,
+    };
+
+    const overlapping = !(
+      paperBounds.x + paperBounds.width < beakerBounds.x ||
+      paperBounds.x > beakerBounds.x + beakerBounds.width ||
+      paperBounds.y + paperBounds.height < beakerBounds.y ||
+      paperBounds.y > beakerBounds.y + beakerBounds.height
+    );
+
+    // 初始化最後溶液屬性（如果不存在）
+    if (!phPaper.lastSolution) {
+      phPaper.lastSolution = null;
+    }
+
+    // 根據重疊狀態更新
+    if (overlapping && this.selectedSolution) {
+      // 僅在以下情況更新顏色：
+      // 1. 試紙之前未連接，或
+      // 2. 溶液自上次檢查後有變化
+      if (this.connectedPHPaper !== phPaper || phPaper.lastSolution !== this.selectedSolution) {
+        this.connectedPHPaper = phPaper;
+        phPaper.lastSolution = this.selectedSolution;
+        this.updatePHPaperColor(this.solutionProperties[this.selectedSolution].phColor);
+      }
+    } else if (this.connectedPHPaper === phPaper) {
+      // 如果不再重疊，重置為綠色
+      this.resetPHPaperColor();
+      this.connectedPHPaper = null;
+      phPaper.lastSolution = null;
+    }
+  }
+
+  // 更新廣用試紙顏色的方法（帶一次性動畫）
+  updatePHPaperColor(color) {
+    if (!this.connectedPHPaper) return;
+
+    // 從連接的廣用試紙中獲取試紙部分
+    const testStrip = this.connectedPHPaper.testStrip;
+    if (!testStrip) return;
+
+    // 將顏色名稱轉換為十六進制
+    const colorHex = this.colorToHex(color);
+
+    // 如果試紙尚未初始化動畫屬性，進行初始化
+    if (!testStrip.hasOwnProperty("targetColor")) {
+      testStrip.targetColor = this.colorToHex("green"); // 預設綠色
+      testStrip.currentColor = this.colorToHex("green");
+      testStrip.colorProgress = 0;
+      testStrip.colorTween = null;
+    }
+
+    // 如果已經在向此顏色動畫，則不重新開始
+    if (testStrip.targetColor === colorHex && testStrip.colorTween) return;
+
+    // 如果已經是相同顏色且動畫已完成，則不執行
+    if (testStrip.targetColor === colorHex && testStrip.colorProgress >= 1) return;
+
+    // 設定目標顏色
+    testStrip.targetColor = colorHex;
+
+    // 如果已有動畫在執行，先停止
+    if (testStrip.colorTween) {
+      testStrip.colorTween.kill();
+      testStrip.colorTween = null;
+    }
+
+    // 對於所有非綠色的顏色，開始由下而上的動畫
+    testStrip.currentColor = colorHex;
+    testStrip.colorProgress = 0; // 重置進度
+
+    // 建立動畫
+    testStrip.colorTween = gsap.to(testStrip, {
+      colorProgress: 1,
+      duration: 1.5,
+      ease: "linear",
+      onUpdate: () => {
+        this.drawTestStrip(testStrip);
+      },
+      onComplete: () => {
+        // 確保在完成時完全繪製
+        this.drawTestStrip(testStrip);
+        testStrip.colorTween = null;
+      },
+    });
+  }
+
+  // 輔助方法：根據當前動畫進度繪製試紙
+  drawTestStrip(testStrip) {
+    testStrip.clear();
+
+    // 如果是綠色或正在變為綠色的過程中
+    if (testStrip.targetColor === this.colorToHex("green")) {
+      // 繪製綠色背景
+      testStrip.rect(-40, 0, 80, 150).fill({ color: this.colorToHex("green") });
+    } else if (testStrip.colorProgress < 1) {
+      // 動畫過程中：從綠色背景開始
+      testStrip.rect(-40, 0, 80, 150).fill({ color: this.colorToHex("green") });
+
+      // 根據進度計算高度（由下往上）
+      const animatedHeight = testStrip.colorProgress * 150;
+      const yPosition = 150 - animatedHeight;
+
+      // 從底部開始繪製有顏色的部分
+      testStrip.rect(-40, yPosition, 80, animatedHeight).fill({ color: testStrip.currentColor });
+    } else {
+      // 動畫完成：完全填充目標顏色
+      testStrip.rect(-40, 0, 80, 150).fill({ color: testStrip.currentColor });
+    }
+  }
+
+  // 重置廣用試紙顏色為綠色（當從溶液中移除時）
+  resetPHPaperColor() {
+    if (!this.connectedPHPaper || !this.connectedPHPaper.testStrip) return;
+
+    const testStrip = this.connectedPHPaper.testStrip;
+
+    // 停止任何正在執行的動畫
+    if (testStrip.colorTween) {
+      testStrip.colorTween.kill();
+      testStrip.colorTween = null;
+    }
+
+    // 重置為綠色
+    testStrip.targetColor = this.colorToHex("green");
+    testStrip.currentColor = this.colorToHex("green");
+    testStrip.colorProgress = 0;
+
+    // 立即重繪
+    this.drawTestStrip(testStrip);
   }
 
   // 顏色名稱轉換為十六進制
@@ -748,7 +952,7 @@ export class ElectrolysisModule {
   toggleTextVisibility(isChecked) {
     this.isTextCheckboxChecked = isChecked;
 
-    // 查找所有含有正負符號文字的元素並更新其可見性
+    // 先將所有現有的標籤設為可見或不可見
     const allComponents = this.itemCanvas.container.children;
     allComponents.forEach((component) => {
       if (component.children) {
@@ -759,6 +963,32 @@ export class ElectrolysisModule {
         });
       }
     });
+
+    // 存儲創建的電極標籤引用
+    if (!this.electrodeLabels) {
+      this.electrodeLabels = { positive: null, negative: null };
+    }
+
+    // 檢查是否已經創建了電極標籤
+    if (!this.electrodeLabels.negative) {
+      const negLabel = new Text({ text: "-", style: scoreStyle });
+      negLabel.x = this.moduleSetup.centerX - 85;
+      negLabel.y = this.moduleSetup.centerY + 150;
+      this.itemCanvas.container.addChild(negLabel);
+      this.electrodeLabels.negative = negLabel;
+    }
+
+    if (!this.electrodeLabels.positive) {
+      const posLabel = new Text({ text: "+", style: scoreStyle });
+      posLabel.x = this.moduleSetup.centerX + 105;
+      posLabel.y = this.moduleSetup.centerY + 150;
+      this.itemCanvas.container.addChild(posLabel);
+      this.electrodeLabels.positive = posLabel;
+    }
+
+    // 根據 checkbox 狀態設置可見性
+    this.electrodeLabels.negative.visible = isChecked;
+    this.electrodeLabels.positive.visible = isChecked;
   }
 
   // 重置

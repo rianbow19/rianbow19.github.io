@@ -745,7 +745,7 @@ class Game {
 
     this.sceneContainer.addChild(this.hitEvent.trailSystem.graphics);
     this.sceneContainer.addChild(this.pineMomCon);
-    this.pineMomCon.x = 1700;
+    this.pineMomCon.x = 960;
     this.pineMomCon.y = 180;
 
     this.comboText = new Text({

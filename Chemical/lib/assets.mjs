@@ -21,10 +21,11 @@ const resource = [
   "set.png",
   "迴紋針.png",
   "棉花.png",
-  "weight.png",
+  "scale.png",
   "skull.png",
   "開關.png",
   "鋅片.png",
+  "銅片.png",
 ];
 
 class AssetsLoader {

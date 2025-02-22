@@ -275,19 +275,18 @@ class Module2 {
     this.isSuccess = false;
 
     // 新增磅秤實例
-    this.container.addChild(weight.container);
-    weight.container.position.set(1650, 800);
-
-    // 創建主要容器
-    Components.sortableChildren = true;
-    this.container.addChild(DRAG_AREA, Components, AllJoints);
+    this.weight = new Weight();
+    this.container.addChild(this.weight.container);
+    this.weight.container.position.set(1650, 800);
 
     // 創建並定位ItemsList
     this.itemsList = new ItemsList(Components);
     this.container.addChild(this.itemsList.container);
     this.itemsList.container.position.set(20, 80);
-    // 設置 ItemsList 的引用
-    this.itemsList.setModule2(this);
+
+    // 創建主要容器
+    Components.sortableChildren = true;
+    this.container.addChild(DRAG_AREA, Components, AllJoints);
 
     this.container.addChild(ionAnimation.container);
     this.container.addChild(electronAnimation.container);
@@ -306,7 +305,6 @@ class Module2 {
     this.createBeaker();
     this.bindBeakerEvent();
     this.bindBeakerEvents();
-    this.bindUTubeEvent();
     this.setupDebugButton();
   }
 
@@ -350,16 +348,6 @@ class Module2 {
       beaker.cursor = "pointer";
       beaker.on("pointerdown", () => {
         this.selectedBeaker = beaker;
-      });
-    }
-  }
-
-  bindUTubeEvent(utube) {
-    if (utube && utube instanceof UTube) {
-      utube.eventMode = "static";
-      utube.cursor = "pointer";
-      utube.on("pointerdown", () => {
-        this.selectedBeaker = utube;
       });
     }
   }
@@ -801,41 +789,10 @@ class Module2 {
     wire2.joints[1].position.set(110, 90);
     wire2.redrawWire();
     Components.addChild(wire2);
-
-    // 設置連接
-    setTimeout(() => {
-      this.connectComponents(zincStrip, wire1, 0);
-      this.connectComponents(wire1, ammeter, 1);
-      this.connectComponents(ammeter, wire2, 0);
-      this.connectComponents(wire2, copperStrip, 1);
-      this.connectComponents(zincStrip, beaker1, 1);
-      this.connectComponents(copperStrip, beaker2, 1);
-      this.connectComponents(beaker1, uTube, 0);
-      this.connectComponents(beaker2, uTube, 1);
-
-      // 重新檢查所有連接
-      recheckAllConnections();
-    }, 100);
-  }
-
-  connectComponents(comp1, comp2, jointIndex) {
-    // 找到最近的連接點
-    const joint1 = comp1.joints[jointIndex];
-    const joint2 = comp2.joints[0]; // 使用第一個連接點
-
-    // 模擬連接
-    joint1.connectedTo = joint2;
-    joint2.connectedTo = joint1;
-
-    // 設置視覺效果
-    joint1.tint = 0x00ff00;
-    joint2.tint = 0x00ff00;
-    joint1.scale.set(0.7);
-    joint2.scale.set(0.7);
   }
 
   update(time) {
-    weight.checkWeight();
+    this.weight.checkWeight();
   }
 }
 
@@ -985,6 +942,8 @@ class Beaker extends Container {
     this.body.anchor.set(0.5);
     this.body.scale.set(0.8);
     this.body.rotation = 0;
+    this.body.eventMode = "static";
+    this.body.cursor = "pointer";
 
     this.body.filters = [new ColorMatrixFilter()];
     this.body.filters[0].brightness(1);
@@ -1005,9 +964,7 @@ class Beaker extends Container {
     ];
     for (let [x, y] of JOINT_POSITION) {
       const joint = new Graphics().circle(0, 0, 30).fill({ color: 0xffffff, alpha: 0.5 }).stroke({ color: 0xffffff, width: 2 });
-      joint.eventMode = "static";
-      joint.cursor = "pointer";
-      joint.on("pointerdown", onDragStart);
+
       joint.position.set(x, y);
       joint.connected = false;
       joint.isJoint = true;
@@ -1238,8 +1195,18 @@ class UTube extends Container {
       joint.zIndex = 2;
       this.joints.push(joint);
       this.addChild(joint);
-      this.addChild(this.body);
     }
+    this.addChild(this.body);
+
+    // 將燒杯容器自身設為互動，綁定 pointerdown 事件來選擇燒杯
+    this.eventMode = "static";
+    this.cursor = "pointer";
+    this.on("pointerdown", () => {
+      const module = Module2.getInstance();
+      if (module) {
+        module.selectedBeaker = this;
+      }
+    });
   }
   setSolution(solutionType) {
     this.solution = solutionType;
@@ -1407,66 +1374,6 @@ class Cotton extends Container {
     }
 
     this.addChild(body);
-  }
-
-  getGlobalJointPositions() {
-    return this.joints.map((joint) => {
-      const globalPos = this.toGlobal(joint.position);
-      return { x: globalPos.x, y: globalPos.y };
-    });
-  }
-}
-
-class CarbonRod extends Container {
-  constructor() {
-    super();
-    this.type = "CarbonRod";
-    this.joints = [];
-    this.body = new Graphics();
-    this.drawRod();
-
-    this.body.eventMode = "static";
-    this.body.cursor = "pointer";
-    this.body.on("pointerdown", onDragStart);
-
-    const JOINT_POSITION = [
-      [0, -120],
-      [0, 120],
-    ];
-    for (let [x, y] of JOINT_POSITION) {
-      const joint = new Graphics().circle(0, 0, 30).fill({ color: 0xffffff, alpha: 0.5 }).stroke({ color: 0xffffff, width: 2 });
-      joint.eventMode = "static";
-      joint.cursor = "pointer";
-      joint.on("pointerdown", onDragStart);
-      joint.position.set(x, y);
-      joint.connected = false;
-      joint.isJoint = true;
-      joint.zIndex = 2;
-      this.joints.push(joint);
-      this.addChild(joint);
-    }
-
-    const text = new Text({
-      text: "碳棒",
-      style: listStyle,
-    });
-    text.anchor.set(0.5);
-
-    this.addChild(this.body, text);
-  }
-
-  drawRod() {
-    this.body.clear();
-    const width = 60;
-    const height = 250;
-
-    // 繪製長方形碳棒
-    this.body
-      .moveTo(-width / 2, -height / 2)
-      .lineTo(width / 2, -height / 2)
-      .lineTo(width / 2, height / 2)
-      .lineTo(-width / 2, height / 2)
-      .fill(0x333333); // 深灰色表示碳棒
   }
 
   getGlobalJointPositions() {
@@ -2076,7 +1983,6 @@ class ItemsList {
   constructor() {
     this.container = new Container();
     this.items = [];
-    this.module2 = null;
 
     this.module2Components = {
       U型管: { texture: "U型管.png", type: "UTube" },
@@ -2088,29 +1994,9 @@ class ItemsList {
       棉花: { texture: "棉花.png", type: "Cotton" },
     };
 
-    this.module4Components = {
-      電線: { texture: "電線.png", type: "Wire" },
-      燈泡: { texture: "燈泡.png", type: "LightBulb" },
-      電池: { texture: "電池.png", type: "Battery" },
-      燒杯: { texture: "燒杯.png", type: "Beaker" },
-      碳棒: { texture: "碳棒.png", type: "CarbonRod" },
-      鋅片: { texture: "鋅片.png", type: "ZincStrip" },
-    };
-
     // Default to module2 components
     this.components = this.module2Components;
     this.createItems();
-  }
-
-  setModule2(module) {
-    this.module2 = module;
-    // Set components based on module type
-    if (module instanceof Module2) {
-      this.components = this.module2Components;
-    } else {
-      this.components = this.module4Components;
-    }
-    this.reset();
   }
 
   // Call this method on reset to re-enable single-use items
@@ -2252,9 +2138,6 @@ class ItemsList {
         break;
       case "UTube":
         component = new UTube();
-        if (this.module2) {
-          this.module2.bindUTubeEvent(component);
-        }
         break;
       case "Ammeter":
         component = new Ammeter();
@@ -2264,18 +2147,6 @@ class ItemsList {
         break;
       case "Cotton":
         component = new Cotton();
-        break;
-      case "Beaker":
-        component = new Beaker();
-        if (this.module2) {
-          this.module2.bindBeakerEvent(component);
-        }
-        break;
-      case "CarbonRod":
-        component = new CarbonRod();
-        break;
-      case "ZincStrip":
-        component = new ZincStrip();
         break;
     }
 
@@ -2290,14 +2161,13 @@ class Weight {
   constructor() {
     this.container = new Container();
 
-    // 建立秤重圖片
-    this.sprite = new Sprite(Texture.from("weight.png"));
+    this.sprite = new Sprite(Texture.from("scale.png"));
     this.sprite.anchor.set(0.5);
     this.sprite.scale.set(0.4);
 
     // 建立秤重文字
     this.weightText = new Text({
-      text: "",
+      text: "測量金屬片重量",
       style: defaultStyle,
     });
     this.weightText.anchor.set(0.5);
@@ -2313,7 +2183,7 @@ class Weight {
     // 設定檢測區域的互動
     this.hitArea.eventMode = "static";
     this.hitArea.on("pointerover", this.checkWeight.bind(this));
-    this.hitArea.on("pointerout", () => (this.weightText.text = ""));
+    this.hitArea.on("pointerout", () => (this.weightText.text = "測量金屬片重量"));
   }
 
   isInWeightArea(component) {
@@ -2350,7 +2220,7 @@ class Weight {
     if (totalWeight > 0) {
       this.weightText.text = `${totalWeight.toFixed(2)}g`;
     } else {
-      this.weightText.text = "";
+      this.weightText.text = "測量金屬片重量";
     }
   }
 
@@ -2370,4 +2240,3 @@ class Weight {
 export const ionAnimation = new IonAnimation();
 export const electronAnimation = new ElectronAnimation();
 export const metalStripAnim = new MetalStripAnimation();
-export const weight = new Weight();

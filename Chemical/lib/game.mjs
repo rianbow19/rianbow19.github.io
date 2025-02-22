@@ -4,7 +4,9 @@ import { Container, Graphics, Sprite, Texture, Text } from "./pixi.mjs";
 import { defaultStyle, listStyle } from "./textStyle.mjs";
 import { ItemsCanvas } from "./itemsCanvas.mjs";
 import { ElectrolysisModule, IonModule, SetElectron, showStatusText } from "./experimentModule.mjs";
-import { electronAnimation, ionAnimation, metalStripAnim, Module2 } from "./module.mjs";
+import { electronAnimation, ionAnimation, metalStripAnim, Module2 } from "./module2.mjs";
+import { electronAnimation4, Module4 } from "./module4.mjs";
+import { electronAnimation5, Module5 } from "./module5.mjs";
 
 export { Game };
 class Game {
@@ -27,6 +29,8 @@ class Game {
     //this.isZoomedIn = false;
     this.itemCanvas = new ItemsCanvas();
     this.module2 = new Module2();
+    this.module4 = new Module4();
+    this.module5 = new Module5();
 
     this.inPage1 = false;
 
@@ -70,6 +74,8 @@ class Game {
       this.electrolysisModule.reset();
       this.ionModule.reset();
       this.module2.reset();
+      this.module4.reset();
+      this.module5.reset();
     });
     this.reloadbtn.on("pointerover", () => {
       this.reloadbtn.scale.set(0.163);
@@ -83,70 +89,6 @@ class Game {
       this.reloadbtn.scale.set(0.163);
       this.reloadbtn.alpha = 0.8;
     });
-
-    /*//放大縮小按鈕
-    const scaleUp = new Sprite(Texture.from("放大鏡.png"));
-    scaleUp.anchor.set(0.5);
-    scaleUp.scale.set(0.3);
-    scaleUp.x = 0;
-    scaleUp.y = 0;
-
-    const scaleUpText = new Text({ text: "+", style: defaultStyle });
-    scaleUpText.anchor.set(0.5);
-    scaleUpText.x = -10;
-    scaleUpText.y = -13;
-
-    //更新縮放標示文字
-    const updateZoomText = () => {
-      scaleUpText.text = this.isZoomedIn ? "+" : "-";
-    };
-    scaleUp.eventMode = "static";
-    scaleUp.cursor = "pointer";
-
-    //放大縮小邏輯
-    scaleUp.on("pointerup", () => {
-      // 找到場景中的燒杯
-      const beaker = this.itemCanvas.components.children.find((child) => child.isBeaker);
-
-      if (beaker) {
-        const oldScale = this.sceneContainer.scale.x;
-        const newScale = !this.isZoomedIn ? oldScale + 0.7 : oldScale - 0.7;
-
-        // 計算燒杯在世界座標中的位置
-        const beakerWorldPos = {
-          x: beaker.x * oldScale + this.sceneContainer.x,
-          y: beaker.y * oldScale + this.sceneContainer.y,
-        };
-
-        // 更新容器縮放
-        this.sceneContainer.scale.set(newScale);
-
-        // 計算新的容器位置以保持燒杯在同一位置
-        const newX = beakerWorldPos.x - beaker.x * newScale;
-        const newY = beakerWorldPos.y - beaker.y * newScale;
-
-        this.sceneContainer.position.set(newX, newY);
-      } else {
-        // 如果沒有燒杯，使用普通縮放
-        this.sceneContainer.scale.set(!this.isZoomedIn ? this.sceneContainer.scale.x + 0.18 : this.sceneContainer.scale.x - 0.18);
-      }
-
-      updateZoomText();
-      this.isZoomedIn = !this.isZoomedIn;
-    });
-
-    scaleUp.on("pointerover", () => {
-      scaleUp.scale.set(0.32);
-      scaleUp.alpha = 0.8;
-    });
-    scaleUp.on("pointerout", () => {
-      scaleUp.scale.set(0.3);
-      scaleUp.alpha = 1;
-    });
-    this.scaleUpCon = new Container();
-    this.scaleUpCon.x = 120;
-    this.scaleUpCon.y = 980;
-    this.scaleUpCon.addChild(scaleUp, scaleUpText);*/
 
     //一件生成電路模組按鈕
     const setbtn = new Sprite(Texture.from("set.png"));
@@ -198,13 +140,9 @@ class Game {
       this.electrolysisModule.reset();
       this.itemCanvas.reset();
       this.module2.reset();
+      this.module4.reset();
 
       this.ionModule.reset();
-
-      // Reset scale and position
-      //this.sceneContainer.scale.set(1);
-      //this.sceneContainer.position.set(0, 0);
-      //this.isZoomedIn = false;
 
       this.startTitle();
     });
@@ -251,12 +189,13 @@ class Game {
     const basesec = [
       { text: "電解氯化銅實驗模組", action: this.modlePage1.bind(this) },
       { text: "離子分兩派實驗模組", action: this.modlePage3.bind(this) },
+      { text: "電解電極材質實驗模組", action: this.modlePage5.bind(this) },
     ];
 
     // 第二組選項
     const advansec = [
       { text: "鋅銅電池實驗模組", action: this.modlePage2.bind(this) },
-      //{ text: "電解電鍍實驗模組", action: this.modlePage4.bind(this) },
+      { text: "電鍍實驗模組", action: this.modlePage4.bind(this) },
     ];
 
     // 創建第一組選項
@@ -576,9 +515,16 @@ class Game {
   modlePage4() {
     this.sceneContainer.removeChildren();
     this.UIContainer.removeChildren();
+    this.UIContainer.addChild(this.setbtnCon); //電路模組按鈕
+    this.setbtnCon.x = 230;
+    this.setbtnCon.y = 210;
 
     this.sceneContainer.addChild(this.module4.container);
     this.UIContainer.addChild(this.reloadbtn); //重新整理按鈕
+
+    this.setbtnCon.on("pointerup", () => {
+      this.module4.setModuleScene();
+    });
 
     this.checkBtn = createButton({
       text: "組裝完成",
@@ -590,14 +536,10 @@ class Game {
         if (!result.success) return;
 
         if (this.module4.isIonCheck) {
-          ionAnimation.start();
         }
         if (this.module4.isEleCheck) {
-          electronAnimation.start();
+          electronAnimation4.start();
         }
-
-        this.module4.updateAmmeterPointer();
-        metalStripAnim.start();
       },
     });
 
@@ -633,7 +575,7 @@ class Game {
 
     //標題
     this.UIContainer.addChild(this.topicCon);
-    this.topicText.text = "實驗｜電解電鍍實驗模組";
+    this.topicText.text = "實驗｜電鍍實驗模組";
 
     // 創建溶液下拉選單
     const drugs = new DropdownMenu({
@@ -652,7 +594,6 @@ class Game {
     };
 
     this.UIContainer.addChild(drugs.container);
-
     // 創建溶液下拉選單
     const elect = new DropdownMenu({
       x: 1450,
@@ -665,8 +606,77 @@ class Game {
     });
 
     // 當選擇溶液時，傳遞給 module4 處理
-    drugs.onSelect = (item) => {
-      this.module4.handleSolutionSelect(item);
+    elect.onSelect = (item) => {
+      // 修正變數名稱
+      this.module4.handleElectrodeSelect(item); // 修改函數名以符合實際用途
+    };
+
+    this.UIContainer.addChild(elect.container);
+  }
+
+  modlePage5() {
+    this.sceneContainer.removeChildren();
+    this.UIContainer.removeChildren();
+    this.UIContainer.addChild(this.setbtnCon); //電路模組按鈕
+    this.setbtnCon.x = 230;
+    this.setbtnCon.y = 210;
+
+    this.sceneContainer.addChild(this.module5.container);
+    this.UIContainer.addChild(this.reloadbtn); //重新整理按鈕
+
+    this.setbtnCon.on("pointerup", () => {
+      this.module5.setModuleScene();
+    });
+
+    this.checkBtn = createButton({
+      text: "組裝完成",
+      x: 1650,
+      y: 245,
+      onClick: () => {
+        const result = this.module5.validateCircuitAssembly();
+        showStatusText(result.message, this.module5);
+        if (!result.success) return;
+        if (this.module5.isEleCheck) {
+          electronAnimation5.start();
+        }
+      },
+    });
+
+    this.UIContainer.addChild(this.checkBtn); //組裝完成按鈕
+
+    // 離子顯示checkbox
+    this.ionCon = createCheckboxBlock(
+      "顯示電子",
+      1650,
+      160,
+      () => {
+        this.module5.toggleElectronDisplay(true);
+      },
+      () => {
+        this.module5.toggleElectronDisplay(false);
+      }
+    );
+    this.UIContainer.addChild(this.ionCon);
+
+    //標題
+    this.UIContainer.addChild(this.topicCon);
+    this.topicText.text = "實驗｜電解電極材質實驗模組";
+
+    // 創建電極下拉選單
+    const elect = new DropdownMenu({
+      x: 1450,
+      y: 560,
+      items: ["兩極碳棒", "兩極銅棒", "正極碳棒 負極銅棒", "正極銅棒 負極碳棒"],
+      label: "兩極種類",
+      columns: 1,
+      prefix: "電極",
+      hoverColor: 0xf0f0f0,
+    });
+
+    // 當選擇電極時，傳遞給 module5 處理
+    elect.onSelect = (item) => {
+      // 修正變數名稱
+      this.module5.handleElectrodeSelect(item); // 修改函數名以符合實際用途
     };
 
     this.UIContainer.addChild(elect.container);
