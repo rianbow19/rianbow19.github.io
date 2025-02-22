@@ -189,13 +189,13 @@ class Game {
     const basesec = [
       { text: "電解氯化銅實驗模組", action: this.modlePage1.bind(this) },
       { text: "離子分兩派實驗模組", action: this.modlePage3.bind(this) },
-      { text: "電解電極材質實驗模組", action: this.modlePage5.bind(this) },
+      { text: "電解電極種類實驗模組", action: this.modlePage5.bind(this) },
     ];
 
     // 第二組選項
     const advansec = [
       { text: "鋅銅電池實驗模組", action: this.modlePage2.bind(this) },
-      { text: "電鍍實驗模組", action: this.modlePage4.bind(this) },
+      { text: "電鍍鋅實驗模組", action: this.modlePage4.bind(this) },
     ];
 
     // 創建第一組選項
@@ -511,20 +511,13 @@ class Game {
     this.UIContainer.addChild(drugs.container);
   }
 
-  // 模組四｜電鍍實驗模組
+  // 模組四｜電鍍鋅實驗模組
   modlePage4() {
     this.sceneContainer.removeChildren();
     this.UIContainer.removeChildren();
-    this.UIContainer.addChild(this.setbtnCon); //電路模組按鈕
-    this.setbtnCon.x = 230;
-    this.setbtnCon.y = 210;
 
     this.sceneContainer.addChild(this.module4.container);
     this.UIContainer.addChild(this.reloadbtn); //重新整理按鈕
-
-    this.setbtnCon.on("pointerup", () => {
-      this.module4.setModuleScene();
-    });
 
     this.checkBtn = createButton({
       text: "組裝完成",
@@ -545,21 +538,7 @@ class Game {
 
     this.UIContainer.addChild(this.checkBtn); //組裝完成按鈕
 
-    // 離子顯示checkbox
-    this.ionCon = createCheckboxBlock(
-      "顯示離子",
-      1650,
-      75,
-      () => {
-        this.module4.toggleIonDisplay(true);
-      },
-      () => {
-        this.module4.toggleIonDisplay(false);
-      }
-    );
-    this.UIContainer.addChild(this.ionCon);
-
-    // 離子顯示checkbox
+    // 電子顯示checkbox
     this.ionCon = createCheckboxBlock(
       "顯示電子",
       1650,
@@ -575,7 +554,7 @@ class Game {
 
     //標題
     this.UIContainer.addChild(this.topicCon);
-    this.topicText.text = "實驗｜電鍍實驗模組";
+    this.topicText.text = "實驗｜電鍍鋅實驗模組";
 
     // 創建溶液下拉選單
     const drugs = new DropdownMenu({
@@ -598,7 +577,7 @@ class Game {
     const elect = new DropdownMenu({
       x: 1450,
       y: 560,
-      items: ["兩極碳棒", "兩極銅棒", "正極碳棒 負極銅棒", "正極銅棒 負極碳棒"],
+      items: ["正極銅棒 負極銅棒", "正極鋅棒 負極鋅棒", "正極銅棒 負極鋅棒", "正極鋅棒 負極銅棒"],
       label: "兩極種類",
       columns: 1,
       prefix: "電極",
@@ -618,8 +597,8 @@ class Game {
     this.sceneContainer.removeChildren();
     this.UIContainer.removeChildren();
     this.UIContainer.addChild(this.setbtnCon); //電路模組按鈕
-    this.setbtnCon.x = 230;
-    this.setbtnCon.y = 210;
+    this.setbtnCon.x = 100;
+    this.setbtnCon.y = 340;
 
     this.sceneContainer.addChild(this.module5.container);
     this.UIContainer.addChild(this.reloadbtn); //重新整理按鈕
@@ -665,7 +644,7 @@ class Game {
     // 創建電極下拉選單
     const elect = new DropdownMenu({
       x: 1450,
-      y: 560,
+      y: 290,
       items: ["兩極碳棒", "兩極銅棒", "正極碳棒 負極銅棒", "正極銅棒 負極碳棒"],
       label: "兩極種類",
       columns: 1,
@@ -696,7 +675,6 @@ class Game {
     if (this.paused) return;
     const currentTime = Date.now();
     if (this.electrolysisModule) {
-      this.electrolysisModule.update(time);
       if (this.inPage1 && currentTime - this.electrolysisModule.lastPHCheckTime >= this.electrolysisModule.PHCheckInterval) {
         this.electrolysisModule.handlePHPaperConnection();
         this.electrolysisModule.lastPHCheckTime = currentTime;

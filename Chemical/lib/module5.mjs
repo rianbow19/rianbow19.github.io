@@ -308,7 +308,76 @@ class Module5 {
   }
 
   // 新增檢查電路組裝的方法
-  // 簡化後的validateCircuitAssembly方法
+  validateElectrodePositions() {
+    // 找到所有電極（碳棒和銅條）
+    const electrodes = Components.children.filter((c) => c.type === "CarbonRod" || c.type === "CopperStrip");
+
+    if (electrodes.length !== 2) {
+      return { success: false, message: "缺少電極或電極數量不正確" };
+    }
+
+    // 定義預期的左右位置範圍
+    const leftPositionRange = { min: 980, max: 1030 };
+    const rightPositionRange = { min: 1120, max: 1180 };
+
+    // 確定左右電極
+    let leftElectrode = null;
+    let rightElectrode = null;
+
+    electrodes.forEach((electrode) => {
+      if (electrode.position.x >= leftPositionRange.min && electrode.position.x <= leftPositionRange.max) {
+        leftElectrode = electrode;
+      } else if (electrode.position.x >= rightPositionRange.min && electrode.position.x <= rightPositionRange.max) {
+        rightElectrode = electrode;
+      }
+    });
+
+    if (!leftElectrode || !rightElectrode) {
+      return { success: false, message: "電極位置不正確" };
+    }
+
+    // 根據電極類型驗證正負極位置
+    switch (this.currentElectrodeType) {
+      case "兩極碳棒":
+        // 兩極都是碳棒，不需要檢查類型
+        if (leftElectrode.type !== "CarbonRod" || rightElectrode.type !== "CarbonRod") {
+          return { success: false, message: "電極類型與選擇不符" };
+        }
+        break;
+
+      case "兩極銅棒":
+        // 兩極都是銅條，不需要檢查類型
+        if (leftElectrode.type !== "CopperStrip" || rightElectrode.type !== "CopperStrip") {
+          return { success: false, message: "電極類型與選擇不符" };
+        }
+        break;
+
+      case "正極碳棒 負極銅棒":
+        // 右邊應該是碳棒（正極），左邊應該是銅條（負極）
+        if (rightElectrode.type !== "CarbonRod" || leftElectrode.type !== "CopperStrip") {
+          return { success: false, message: "電極位置錯誤：正極應為碳棒，負極應為銅條" };
+        }
+        break;
+
+      case "正極銅棒 負極碳棒":
+        // 右邊應該是銅條（正極），左邊應該是碳棒（負極）
+        if (rightElectrode.type !== "CopperStrip" || leftElectrode.type !== "CarbonRod") {
+          return { success: false, message: "電極位置錯誤：正極應為銅條，負極應為碳棒" };
+        }
+        break;
+
+      default:
+        return { success: false, message: "請先選擇電極材質" };
+    }
+
+    // 儲存正確的電極引用以供動畫使用
+    this.positiveElectrode = rightElectrode;
+    this.negativeElectrode = leftElectrode;
+
+    return { success: true, message: "電極位置正確" };
+  }
+
+  // 修改 validateCircuitAssembly 方法，增加電極位置驗證
   validateCircuitAssembly() {
     console.log("=== Validating Circuit Assembly ===");
 
@@ -359,12 +428,22 @@ class Module5 {
       }
     }
 
+    // 驗證電極位置是否正確
+    if (this.currentElectrodeType) {
+      const electrodeValidation = this.validateElectrodePositions();
+      if (!electrodeValidation.success) {
+        return electrodeValidation;
+      }
+    } else {
+      return { success: false, message: "請先選擇電極材質" };
+    }
+
     // 使燈泡發光
     circuit.lightBulbs.forEach((bulb) => {
-      let lightEffect = bulb.children.find((child) => child.name === "lightEffect");
+      let lightEffect = bulb.children.find((child) => child.label === "lightEffect");
       if (!lightEffect) {
         lightEffect = new Sprite(Texture.from("燈泡光.png"));
-        lightEffect.name = "lightEffect";
+        lightEffect.label = "lightEffect";
         lightEffect.alpha = 0.7;
         lightEffect.anchor.set(0.5);
         lightEffect.position.set(0, -30);
@@ -377,9 +456,7 @@ class Module5 {
 
     // 開始電極動畫
     this.isSuccess = true;
-    if (this.currentElectrodeType) {
-      this.startElectrodeAnimation(this.currentElectrodeType);
-    }
+    this.startElectrodeAnimation(this.currentElectrodeType);
 
     console.log("電路連接成功，共有元件數:", circuit.components.size);
     console.log("電池數量:", circuit.batteryCount);
@@ -530,6 +607,13 @@ class Module5 {
     }
     this.electrodeAnimations = [];
 
+    // 驗證電極位置是否正確
+    const validation = this.validateElectrodePositions();
+    if (!validation.success) {
+      console.log("無法開始動畫：", validation.message);
+      return;
+    }
+
     // 找到燒杯元件
     const beakers = Components.children.filter((c) => c.type === "Beaker");
     if (!beakers || beakers.length < 1) return;
@@ -540,10 +624,10 @@ class Module5 {
     switch (electrodeType) {
       case "兩極碳棒":
         // 正極動畫：產生氣體和試紙變色
-        this.animateGasBubbles(this.strip1);
+        this.animateGasBubbles(this.positiveElectrode);
 
         // 負極動畫：產生紅棕色銅金屬
-        this.animateCopperDeposition(this.strip2);
+        this.animateCopperDeposition(this.negativeElectrode);
 
         // 溶液顏色變淺 - 試紙顏色變化會在 animateSolutionFade 中處理
         this.animateSolutionFade(mainBeaker);
@@ -551,20 +635,20 @@ class Module5 {
 
       case "兩極銅棒":
         // 正極動畫：銅棒重量變輕和溶液分層
-        this.animateCopperDissolution(this.strip1);
+        this.animateCopperDissolution(this.positiveElectrode);
 
         // 負極動畫：銅棒重量變重和溶液分層
-        this.animateCopperDeposition(this.strip2);
+        this.animateCopperDeposition(this.negativeElectrode);
 
         // 溶液顏色保持不變
         break;
 
       case "正極碳棒 負極銅棒":
         // 正極動畫：產生氣體和試紙變色
-        this.animateGasBubbles(this.strip1);
+        this.animateGasBubbles(this.positiveElectrode);
 
         // 負極動畫：銅棒重量變重和溶液分層
-        this.animateCopperDeposition(this.strip2);
+        this.animateCopperDeposition(this.negativeElectrode);
 
         // 溶液顏色變淺 - 試紙顏色變化會在 animateSolutionFade 中處理
         this.animateSolutionFade(mainBeaker);
@@ -572,10 +656,10 @@ class Module5 {
 
       case "正極銅棒 負極碳棒":
         // 正極動畫：銅棒重量變輕和溶液分層
-        this.animateCopperDissolution(this.strip1);
+        this.animateCopperDissolution(this.positiveElectrode);
 
         // 負極動畫：產生紅棕色銅金屬
-        this.animateCopperDeposition(this.strip2);
+        this.animateCopperDeposition(this.negativeElectrode);
 
         // 溶液顏色保持不變
         break;
@@ -1196,7 +1280,7 @@ class CopperStrip extends Container {
     }
 
     const text = new Text({
-      text: "銅片",
+      text: "銅棒",
       style: listStyle,
     });
     text.anchor.set(0.5);
@@ -1406,12 +1490,19 @@ function checkPhPaperBeakerCollision() {
       };
 
       let isColliding = false;
+      let currentBeaker = null;
+
+      // 儲存上一幀接觸的燒杯，用於檢測是否變化了接觸的燒杯
+      if (!component.lastCollidedBeaker) {
+        component.lastCollidedBeaker = null;
+      }
 
       Components.children.forEach((other) => {
         if (other.type === "Beaker") {
           const beakerBounds = other.getBounds();
           if (rectIntersect(testStripBounds, beakerBounds)) {
             isColliding = true;
+            currentBeaker = other;
 
             // 檢查燒杯溶液和顏色狀態
             if (other.solution === "硫酸銅") {
@@ -1430,9 +1521,18 @@ function checkPhPaperBeakerCollision() {
               // 計算當前顏色與原始藍色的差異
               const colorDiff = Math.sqrt(Math.pow(r - blueR, 2) + Math.pow(g - blueG, 2) + Math.pow(b - blueB, 2));
 
-              // 如果顏色已經明顯變化（變淡），則更改試紙顏色
-              if (colorDiff > 100) {
-                component.updateColor(0xff6600); // 橘色（帶淡入效果）
+              // 檢查是否是新的燒杯接觸或者被拖動了
+              const isNewBeaker = component.lastCollidedBeaker !== other;
+              const isBeingDragged = component.isDragging; // 假設有一個 isDragging 屬性
+
+              // 如果顏色已經明顯變化（變淡），且是新接觸或正在拖動，則重新開始顏色變化動畫
+              if (colorDiff > 100 && (isNewBeaker || isBeingDragged)) {
+                component.updateColor(0xff6600, false); // 橘色（帶淡入效果），強制重新開始動畫
+              } else if (colorDiff > 100) {
+                // 如果沒有移動但顏色需要變化，只更新目標顏色但不重置進度
+                if (component.targetColor !== 0xff6600) {
+                  component.updateColor(0xff6600, false);
+                }
               } else {
                 component.resetColor(); // 使用重置方法
               }
@@ -1443,6 +1543,9 @@ function checkPhPaperBeakerCollision() {
           }
         }
       });
+
+      // 儲存當前接觸的燒杯，用於下一幀比較
+      component.lastCollidedBeaker = currentBeaker;
 
       // 如果試紙不與任何燒杯接觸，立即恢復原始顏色
       if (!isColliding && component.targetColor !== 0x01ea00) {

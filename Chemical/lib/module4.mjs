@@ -1,5 +1,5 @@
-import { ColorMatrixFilter, Container, Graphics, Sprite, Text, Texture } from "./pixi.mjs";
-import { defaultStyle3, ionStyle, listStyle } from "./textStyle.mjs";
+import { Container, Graphics, Sprite, Text, Texture } from "./pixi.mjs";
+import { defaultStyle3, listStyle } from "./textStyle.mjs";
 import { gsap } from "../gsap-public/src/index.js";
 export { Module4 };
 
@@ -274,6 +274,8 @@ class Module4 {
     this.selectedBeaker = null;
     this.isSuccess = false;
 
+    this.initialStripPositions = {}; // 儲存電極的初始位置
+
     // 創建主要容器
     Components.sortableChildren = true;
     this.container.addChild(DRAG_AREA, Components, AllJoints);
@@ -298,32 +300,20 @@ class Module4 {
     this.stopAllAnimations();
     this.itemsList.reset();
     this.isSuccess = false;
+    this.initialStripPositions = {}; // 重設電極初始位置
     // 移除銅層圖形
-    if (this.copperLayer && this.copperLayer.parent) {
-      this.copperLayer.parent.removeChild(this.copperLayer);
-      this.copperLayer = null;
+    if (this.zincLayer && this.zincLayer.parent) {
+      this.zincLayer.parent.removeChild(this.zincLayer);
+      this.zincLayer = null;
     }
   }
 
   // 新增檢查電路組裝的方法
   validateCircuitAssembly() {
-    console.log("=== Current Connections ===");
+    console.log("=== Validating Circuit Assembly ===");
 
-    function traverseCircuit(component, circuit) {
-      if (circuit.components.has(component)) return;
-      circuit.components.add(component);
-      if (component.type === "Battery") circuit.batteryCount++;
-      if (component.type === "LightBulb") circuit.lightBulbs.push(component);
-
-      component.joints.forEach((joint) => {
-        if (joint.connectedTo) {
-          traverseCircuit(joint.connectedTo.parent, circuit);
-        }
-      });
-    }
-
-    // 檢查是否包含必要元件
-    const requiredComponents = ["LightBulb", "Battery", "Wire"];
+    // 檢查是否包含必要元件: 電池, 電線, 燒杯
+    const requiredComponents = ["Battery", "Wire", "Beaker"];
     const componentTypes = Components.children.map((comp) => comp.type);
 
     for (const type of requiredComponents) {
@@ -332,53 +322,147 @@ class Module4 {
       }
     }
 
-    // 查找燈泡與電池
-    const lightBulb = Components.children.find((comp) => comp.type === "LightBulb");
-    const battery = Components.children.find((comp) => comp.type === "Battery");
-
-    if (!lightBulb || !battery) {
-      return { success: false, message: "缺少燈泡或電池元件" };
+    // 檢查燒杯溶液是否正確 (必須為硫酸鋅 - 無色)
+    const beaker = Components.children.find((comp) => comp.type === "Beaker");
+    if (!beaker || beaker.solution !== "硫酸鋅") {
+      return { success: false, message: "燒杯溶液必須為硫酸鋅" };
     }
 
-    // 檢查電路連通性
-    const circuits = [];
+    // 檢查金屬棒 (必須有兩個金屬棒)
+    const electrodes = Components.children.filter((comp) => comp.type === "ZincStrip" || comp.type === "CopperStrip");
+
+    if (electrodes.length !== 2) {
+      return { success: false, message: "需要兩個金屬棒作為電極" };
+    }
+
+    // 檢查電極是否被交換位置
+    if (this.currentElectrodeType === "正極鋅棒 負極銅棒") {
+      const zincStrip = electrodes.find((e) => e.type === "ZincStrip");
+      const copperStrip = electrodes.find((e) => e.type === "CopperStrip");
+
+      if (zincStrip && copperStrip && this.initialStripPositions.zinc && this.initialStripPositions.copper) {
+        // 計算電極位置變動的距離
+        const zincMoved = Math.sqrt(
+          Math.pow(zincStrip.position.x - this.initialStripPositions.zinc.x, 2) +
+            Math.pow(zincStrip.position.y - this.initialStripPositions.zinc.y, 2)
+        );
+
+        const copperMoved = Math.sqrt(
+          Math.pow(copperStrip.position.x - this.initialStripPositions.copper.x, 2) +
+            Math.pow(copperStrip.position.y - this.initialStripPositions.copper.y, 2)
+        );
+
+        // 如果兩個電極都移動了足夠的距離，可能是被交換了位置
+        const movementThreshold = 50; // 判定為交換位置的閾值
+
+        // 檢查鋅棒應在燒杯右側，銅棒應在燒杯左側
+        const beakerCenter = beaker.position.x;
+        const zincToRight = zincStrip.position.x > beakerCenter;
+        const copperToLeft = copperStrip.position.x < beakerCenter;
+
+        // 如果電極位置明顯錯誤（鋅棒應在右側，銅棒應在左側）
+        if (!zincToRight || !copperToLeft || (zincMoved > movementThreshold && copperMoved > movementThreshold)) {
+          return { success: false, message: "電極位置錯誤，請勿交換正負極位置" };
+        }
+      }
+    }
+
+    if (this.currentElectrodeType === "正極銅棒 負極鋅棒") {
+      const zincStrip = electrodes.find((e) => e.type === "ZincStrip");
+      const copperStrip = electrodes.find((e) => e.type === "CopperStrip");
+
+      if (zincStrip && copperStrip && this.initialStripPositions.zinc && this.initialStripPositions.copper) {
+        // 計算電極位置變動的距離
+        const zincMoved = Math.sqrt(
+          Math.pow(zincStrip.position.x - this.initialStripPositions.zinc.x, 2) +
+            Math.pow(zincStrip.position.y - this.initialStripPositions.zinc.y, 2)
+        );
+
+        const copperMoved = Math.sqrt(
+          Math.pow(copperStrip.position.x - this.initialStripPositions.copper.x, 2) +
+            Math.pow(copperStrip.position.y - this.initialStripPositions.copper.y, 2)
+        );
+
+        // 如果兩個電極都移動了足夠的距離，可能是被交換了位置
+        const movementThreshold = 50; // 判定為交換位置的閾值
+
+        // 檢查鋅棒應在燒杯左側，銅棒應在燒杯右側
+        const beakerCenter = beaker.position.x;
+        const zincToLeft = zincStrip.position.x < beakerCenter;
+        const copperToRight = copperStrip.position.x > beakerCenter;
+
+        // 如果電極位置明顯錯誤（鋅棒應在左側，銅棒應在右側）
+        if (!zincToLeft || !copperToRight || (zincMoved > movementThreshold && copperMoved > movementThreshold)) {
+          return { success: false, message: "電極位置錯誤，請勿交換正負極位置" };
+        }
+      }
+    }
+
+    // 檢查電極種類是否符合要求 (正極銅棒 負極銅棒 或 正極鋅棒 負極銅棒)
+    const hasValidElectrodes =
+      // 正極銅棒 負極銅棒
+      (electrodes[0].type === "CopperStrip" && electrodes[1].type === "CopperStrip") ||
+      // 正極鋅棒 負極銅棒
+      (electrodes[0].type === "ZincStrip" && electrodes[1].type === "CopperStrip");
+
+    if (!hasValidElectrodes) {
+      return { success: false, message: "電極組合不正確" };
+    }
+
+    // 檢查電路連通性 - 遞迴函數用於追蹤電路連接
+    function traverseCircuit(component, circuit, visited = new Set()) {
+      if (visited.has(component)) return;
+      visited.add(component);
+      circuit.components.add(component);
+
+      if (component.type === "Battery") circuit.batteryCount++;
+      if (component.type === "LightBulb") circuit.lightBulbs.push(component);
+      if (component.type === "Beaker") circuit.beakers.push(component);
+      if (component.type === "ZincStrip" || component.type === "CopperStrip") {
+        circuit.electrodes.push(component);
+      }
+
+      component.joints.forEach((joint) => {
+        if (joint.connectedTo) {
+          traverseCircuit(joint.connectedTo.parent, circuit, visited);
+        }
+      });
+    }
+
+    // 從電池開始追蹤電路
     const circuit = {
       components: new Set(),
       lightBulbs: [],
       batteryCount: 0,
+      beakers: [],
+      electrodes: [],
     };
 
-    // 從電池開始追蹤電路
-    traverseCircuit(battery, circuit);
-    circuits.push(circuit);
+    traverseCircuit(
+      Components.children.find((comp) => comp.type === "Battery"),
+      circuit
+    );
 
-    // 檢查是否形成了包含電池和燈泡的閉合電路
-    if (!circuit.components.has(lightBulb)) {
-      console.log("燈泡未連接到電路");
-      return { success: false, message: "燈泡未連接到電路" };
+    // 檢查燒杯是否與電極連接
+    if (circuit.beakers.length === 0) {
+      return { success: false, message: "燒杯未連接到電路" };
     }
 
-    // 檢查電路是否至少包含了一個電池、一個燈泡和至少一條電線
-    const hasWire = Array.from(circuit.components).some((comp) => comp.type === "Wire");
-
-    if (!hasWire || circuit.batteryCount === 0 || circuit.lightBulbs.length === 0) {
-      console.log("電路不完整，需要電池、燈泡和電線");
-      return { success: false, message: "電路不完整，需要電池、燈泡和電線" };
+    // 檢查是否形成完整的迴路
+    if (circuit.electrodes.length < 2) {
+      return { success: false, message: "電極未正確連接到電路" };
     }
 
-    // 檢查電路中的每條電線兩端是否都連接到其他元件
+    // 檢查所有電路元件中的電線是否兩端都連接
     const wiresInCircuit = Array.from(circuit.components).filter((comp) => comp.type === "Wire");
     for (const wire of wiresInCircuit) {
-      // 檢查電線的兩個接點是否都連接到了其他元件
       const connectionCount = wire.joints.filter((joint) => joint.connectedTo).length;
       if (connectionCount < 2) {
-        console.log("電線的兩端都必須連接到元件");
         return { success: false, message: "電線的兩端都必須連接到元件" };
       }
     }
 
-    // 檢查所有電路元件是否形成完整回路
-    // 計算每個元件的連接數量
+    // 檢查電路是否形成閉合迴路 (每個元件至少有兩個連接點)
     const connectionCountMap = new Map();
     Array.from(circuit.components).forEach((comp) => {
       if (comp.joints) {
@@ -387,21 +471,19 @@ class Module4 {
       }
     });
 
-    // 確認每個元件至少有兩個連接點（形成迴路的必要條件）
     for (const [comp, connectionCount] of connectionCountMap.entries()) {
-      // 每個元件應至少有兩個連接點，除非是終端元件（如燈泡或電池可能只有一個接點）
-      if (connectionCount < (comp.type === "LightBulb" || comp.type === "Battery" ? 1 : 2)) {
-        console.log(`元件 ${comp.type} 連接不完整，無法形成迴路`);
+      // 每個元件應至少有兩個連接點 (除了終端元件如燈泡可能只有一個接點)
+      if (connectionCount < (comp.type === "LightBulb" ? 1 : 2)) {
         return { success: false, message: `元件 ${comp.type} 連接不完整，無法形成迴路` };
       }
     }
 
-    // 使燈泡發光
+    // 若電路包含燈泡，使燈泡發光
     circuit.lightBulbs.forEach((bulb) => {
-      let lightEffect = bulb.children.find((child) => child.name === "lightEffect");
+      let lightEffect = bulb.children.find((child) => child.label === "lightEffect");
       if (!lightEffect) {
         lightEffect = new Sprite(Texture.from("燈泡光.png"));
-        lightEffect.name = "lightEffect";
+        lightEffect.label = "lightEffect";
         lightEffect.alpha = 0.7;
         lightEffect.anchor.set(0.5);
         lightEffect.position.set(0, -30);
@@ -412,18 +494,135 @@ class Module4 {
       lightEffect.scale.set(brightness);
     });
 
-    // 開始對應的電極動畫
     this.isSuccess = true;
-    if (this.currentElectrodeType) {
-      this.startElectrodeAnimation(this.currentElectrodeType);
+    // 電路驗證成功
+    if (this.isSuccess) {
+      // Find the copper strip on the left side (negative electrode)
+      const copperStrip = circuit.electrodes.find((electrode) => electrode.type === "CopperStrip" && electrode.position.x < beaker.position.x);
+
+      if (copperStrip) {
+        this.animateZincPlating(copperStrip);
+      }
     }
 
-    // 顯示連接情況
     console.log("電路連接成功，共有元件數:", circuit.components.size);
     console.log("電池數量:", circuit.batteryCount);
     console.log("燈泡數量:", circuit.lightBulbs.length);
+    console.log("電極數量:", circuit.electrodes.length);
 
-    return { success: true, message: "組裝成功！" };
+    return { success: true, message: "答對了，你好棒" };
+  }
+
+  createStrip() {
+    // 根據當前電極類型創建電極
+    switch (this.currentElectrodeType) {
+      case "正極銅棒 負極銅棒":
+        this.strip1 = new CopperStrip();
+        this.strip2 = new CopperStrip();
+        break;
+      case "正極鋅棒 負極鋅棒":
+        this.strip1 = new ZincStrip();
+        this.strip2 = new ZincStrip();
+        break;
+      case "正極銅棒 負極鋅棒":
+        this.strip1 = new CopperStrip();
+        this.strip2 = new ZincStrip();
+        break;
+      case "正極鋅棒 負極銅棒":
+        this.strip1 = new ZincStrip();
+        this.strip2 = new CopperStrip();
+        break;
+    }
+
+    // 尋找燒杯及其連接點位置
+    const beaker = Components.children.filter((c) => c.type === "Beaker")[0];
+    if (beaker) {
+      // 取得燒杯的左側連接點位置
+      const rightJoint = beaker.joints[1];
+      const rightJointGlobal = beaker.toGlobal(rightJoint.position);
+
+      // 取得燒杯的右側連接點位置
+      const leftJoint = beaker.joints[0];
+      const leftJointGlobal = beaker.toGlobal(leftJoint.position);
+
+      // 將金屬條放置在連接點位置
+      const strip1Local = Components.toLocal({
+        x: rightJointGlobal.x,
+        y: rightJointGlobal.y - 70,
+      });
+      const strip2Local = Components.toLocal({
+        x: leftJointGlobal.x,
+        y: leftJointGlobal.y - 70,
+      });
+
+      this.strip1.position.copyFrom(strip1Local);
+      this.strip2.position.copyFrom(strip2Local);
+    } else {
+      // 如果找不到燒杯，使用預設位置
+      this.strip1.position.set(1149, 646);
+      this.strip2.position.set(1009, 646);
+    }
+
+    Components.addChild(this.strip1);
+    Components.addChild(this.strip2);
+
+    // 儲存電極的初始位置，用於後續檢查是否被交換
+    if (this.currentElectrodeType === "正極鋅棒 負極銅棒") {
+      this.initialStripPositions = {
+        zinc: { x: this.strip1.position.x, y: this.strip1.position.y },
+        copper: { x: this.strip2.position.x, y: this.strip2.position.y },
+      };
+    }
+    if (this.currentElectrodeType === "正極銅棒 負極鋅棒") {
+      this.initialStripPositions = {
+        zinc: { x: this.strip2.position.x, y: this.strip2.position.y },
+        copper: { x: this.strip1.position.x, y: this.strip1.position.y },
+      };
+    }
+  }
+
+  animateZincPlating(electrode) {
+    // 定義鋅層尺寸
+    const width = 60;
+
+    // 在電極上創建一個鋅層圖形
+    // 使用灰銀色表示鋅
+    const zincLayer = new Graphics()
+      .rect(-(width + 4) / 2, 58, width + 4, 68) // 相對於電極的本地座標
+      .fill(0x808080);
+    zincLayer.alpha = 0;
+    electrode.addChild(zincLayer);
+
+    // 鋅層逐漸顯現動畫
+    gsap.to(zincLayer, {
+      alpha: 1,
+      duration: 5,
+      ease: "linear",
+    });
+
+    // 儲存鋅層參考以供後續清理
+    this.zincLayer = zincLayer;
+  }
+
+  handleElectrodeSelect(electrode) {
+    // 儲存選擇的電極類型
+    this.currentElectrodeType = electrode;
+
+    // 移除現有的電極
+    const existingStrips = Components.children.filter((c) => c.type === "ZincStrip" || c.type === "CopperStrip");
+    existingStrips.forEach((strip) => Components.removeChild(strip));
+
+    // 創建新的電極
+    this.createStrip();
+    // 尋找所有燒杯組件並重置它們的顏色和溶液
+    Components.children
+      .filter((c) => c.type === "Beaker")
+      .forEach((beaker) => {
+        beaker.setSolution(beaker.solution);
+      });
+
+    // 重新檢查所有連接
+    recheckAllConnections();
   }
 
   toggleElectronDisplay(show) {
@@ -722,7 +921,7 @@ class CopperStrip extends Container {
     }
 
     const text = new Text({
-      text: "銅片",
+      text: "銅棒",
       style: listStyle,
     });
     text.anchor.set(0.5);
@@ -783,7 +982,7 @@ class ZincStrip extends Container {
       this.addChild(joint);
     }
     const text = new Text({
-      text: "鋅片",
+      text: "鋅棒",
       style: listStyle,
     });
     text.anchor.set(0.5);
@@ -815,21 +1014,31 @@ class ZincStrip extends Container {
   }
 }
 
-class CarbonRod extends Container {
+class UTube extends Container {
   constructor() {
     super();
-    this.type = "CarbonRod";
+    this.type = "UTube";
     this.joints = [];
-    this.body = new Graphics();
-    this.drawRod();
-
+    this.body = new Sprite(Texture.from("U型管.png"));
+    this.body.anchor.set(0.5);
+    this.body.scale.set(0.66);
+    this.body.rotation = 0;
     this.body.eventMode = "static";
     this.body.cursor = "pointer";
     this.body.on("pointerdown", onDragStart);
 
+    // 創建溶液名稱文字
+    this.solutionText = new Text({
+      text: "溶液：點擊後選擇右側列表",
+      style: defaultStyle3,
+    });
+    this.solutionText.anchor.set(0.5, 0);
+    this.solutionText.position.set(0, -180);
+    this.addChild(this.solutionText);
+
     const JOINT_POSITION = [
-      [0, -120],
-      [0, 120],
+      [-100, 120],
+      [100, 120],
     ];
     for (let [x, y] of JOINT_POSITION) {
       const joint = new Graphics().circle(0, 0, 30).fill({ color: 0xffffff, alpha: 0.5 }).stroke({ color: 0xffffff, width: 2 });
@@ -843,28 +1052,47 @@ class CarbonRod extends Container {
       this.joints.push(joint);
       this.addChild(joint);
     }
+    this.addChild(this.body);
 
-    const text = new Text({
-      text: "碳棒",
-      style: listStyle,
+    // 將燒杯容器自身設為互動，綁定 pointerdown 事件來選擇燒杯
+    this.eventMode = "static";
+    this.cursor = "pointer";
+    this.on("pointerdown", () => {
+      const module = Module4.getInstance();
+      if (module) {
+        module.selectedBeaker = this;
+      }
     });
-    text.anchor.set(0.5);
-
-    this.addChild(this.body, text);
+  }
+  setSolution(solutionType) {
+    this.solution = solutionType;
+    const color = this.getSolutionColor(solutionType);
+    this.updateBeakerColor(color);
+    this.solutionText.text = `溶液：${solutionType || "點擊後選擇右側列表"}`;
   }
 
-  drawRod() {
-    this.body.clear();
-    const width = 60;
-    const height = 250;
+  // 根據溶液類型取得對應顏色
+  getSolutionColor(solutionType) {
+    const solutionColors = {
+      硫酸銅: "blue", // 藍色
+      硫酸鋅: "transparent", // 淡藍色
+      硝酸鉀: "transparent", // 無色
+    };
+    return solutionColors[solutionType] || "transparent";
+  }
 
-    // 繪製長方形碳棒
-    this.body
-      .moveTo(-width / 2, -height / 2)
-      .lineTo(width / 2, -height / 2)
-      .lineTo(width / 2, height / 2)
-      .lineTo(-width / 2, height / 2)
-      .fill(0x333333); // 深灰色表示碳棒
+  // 更新燒杯顏色
+  updateBeakerColor(color) {
+    // 將顏色名稱轉換為16進制顏色代碼
+    const colorMap = {
+      white: 0xffffff,
+      blue: 0x4169e1,
+      yellow: 0xfffdeb,
+      lightgreen: 0x00e0f0,
+      transparent: 0xffffff,
+    };
+
+    this.body.tint = colorMap[color] || 0xffffff;
   }
 
   getGlobalJointPositions() {
@@ -877,23 +1105,38 @@ class CarbonRod extends Container {
 
 function getCircuitPathPoints() {
   let startJoint = null;
-  // 找出起點：從 Wire 中找出與 ZincStrip 相連的連結點
+  let endJoint = null;
+
+  // 找到所有與金屬棒連接的導線連接點
+  const metalStripJoints = [];
   for (const comp of Components.children) {
     if (comp.type === "Wire") {
       for (const joint of comp.joints) {
-        if (
-          (joint.connectedTo && joint.connectedTo.parent && joint.connectedTo.parent.type === "CopperStrip") ||
-          joint.connectedTo.parent.type === "CarbonRod"
-        ) {
-          startJoint = joint;
-          break;
+        if (joint.connectedTo && joint.connectedTo.parent) {
+          const connectedType = joint.connectedTo.parent.type;
+          if (connectedType === "CopperStrip" || connectedType === "ZincStrip") {
+            const stripPos = joint.connectedTo.parent.position.x;
+            metalStripJoints.push({
+              joint: joint,
+              type: connectedType,
+              x: stripPos,
+            });
+          }
         }
       }
     }
-    if (startJoint) break;
   }
-  if (!startJoint) {
-    console.warn("找不到起始連結點（ZincStrip 連線）");
+
+  // 根據金屬棒的位置排序，找出最左和最右的連接點
+  metalStripJoints.sort((a, b) => a.x - b.x);
+
+  if (metalStripJoints.length >= 2) {
+    startJoint = metalStripJoints[0].joint;
+    endJoint = metalStripJoints[metalStripJoints.length - 1].joint;
+  }
+
+  if (!startJoint || !endJoint) {
+    console.warn("找不到起始或結束連結點");
     return [];
   }
 
@@ -902,9 +1145,11 @@ function getCircuitPathPoints() {
   let currentJoint = startJoint;
   let prevJoint = null;
 
+  // 從起點開始追蹤路徑
   while (currentJoint && !visited.has(currentJoint)) {
     visited.add(currentJoint);
-    // 取得當前連結點的全域位置，並加入路徑中
+
+    // 取得當前連結點的全域位置
     const globalPos = currentJoint.parent.toGlobal(currentJoint.position);
     path.push(globalPos);
 
@@ -912,48 +1157,34 @@ function getCircuitPathPoints() {
     const parentComp = currentJoint.parent;
 
     if (parentComp.type === "Wire") {
-      // 如果在 Wire 中，尋找另一個連結點（非目前這一點）的連結
+      // 在導線中找另一個連結點
       for (const joint of parentComp.joints) {
         if (joint !== currentJoint && joint.connectedTo) {
           nextJoint = joint.connectedTo;
           break;
         }
       }
-    } else if (parentComp.type === "Clip" || parentComp.type === "LightBulb" || parentComp.type === "Battery") {
-      // Ammeter 有兩個連結點，找到另一個連接點
-      let otherJoint = null;
+    } else if (parentComp.type === "Battery" || parentComp.type === "LightBulb") {
+      // 元件有兩個連結點的情況
       for (const joint of parentComp.joints) {
-        if (joint !== currentJoint) {
-          otherJoint = joint;
+        if (joint !== currentJoint && joint.connectedTo && joint.connectedTo !== prevJoint) {
+          nextJoint = joint.connectedTo;
           break;
         }
       }
-      if (otherJoint) {
-        // 優先使用其他連接點的 connectedTo，如果沒有，再直接使用其他連接點
-        if (otherJoint.connectedTo && otherJoint.connectedTo !== prevJoint) {
-          nextJoint = otherJoint.connectedTo;
-        } else {
-          nextJoint = otherJoint;
-        }
-      }
-    } else {
-      // 其他元件直接取其連結（排除回到前一個連結點）
-      if (currentJoint.connectedTo && currentJoint.connectedTo !== prevJoint) {
-        nextJoint = currentJoint.connectedTo;
-      }
     }
 
-    // 當下一個連結點屬於 CopperStrip 時，將其加入路徑後結束遍歷
-    if ((nextJoint && nextJoint.parent && nextJoint.parent.type === "CopperStrip") || nextJoint.parent.type === "CarbonRod") {
-      const copperPos = nextJoint.parent.toGlobal(nextJoint.position);
-      path.push(copperPos);
+    // 如果找到終點，加入路徑後結束
+    if (nextJoint === endJoint) {
+      const endPos = nextJoint.parent.toGlobal(nextJoint.position);
+      path.push(endPos);
       break;
     }
 
-    // 若無下一個連結點則中斷
+    // 若無法找到下一個點則中斷
     if (!nextJoint) break;
 
-    // 更新 prevJoint 與 currentJoint，繼續遍歷
+    // 更新前一個點和當前點
     prevJoint = currentJoint;
     currentJoint = nextJoint;
   }
@@ -970,8 +1201,6 @@ class ElectronAnimation {
     this.electrons = [];
     this.electronAnimations = [];
     this.isAnimating = false;
-
-    this.electronConfigs = {};
   }
 
   createElectron() {
@@ -981,119 +1210,63 @@ class ElectronAnimation {
     return electron;
   }
 
-  createElectronsForComponent(component) {
-    if (component.type === "Wire") {
-      if (!component.joints || component.joints.length !== 2) return;
-
-      const start = component.toGlobal(component.joints[0]);
-      const end = component.toGlobal(component.joints[1]);
-
-      for (let i = 0; i < 6; i++) {
-        const electron = this.createElectron();
-        const progress = i / 5;
-
-        const globalX = start.x + (end.x - start.x) * progress;
-        const globalY = start.y + (end.y - start.y) * progress;
-
-        const localPos = this.electronsContainer.toLocal({ x: globalX, y: globalY });
-        electron.x = localPos.x;
-        electron.y = localPos.y;
-
-        this.electronsContainer.addChild(electron);
-        this.electrons.push({
-          sprite: electron,
-          component: component,
-          globalPos: { x: globalX, y: globalY },
-        });
-      }
-      return;
-    }
-
-    const config = this.electronConfigs[component.type];
-    if (!config) return;
-
-    config.forEach((pos) => {
-      const electron = this.createElectron();
-      const globalPos = component.toGlobal(pos);
-      const localPos = this.electronsContainer.toLocal(globalPos);
-
-      electron.x = localPos.x;
-      electron.y = localPos.y;
-
-      this.electronsContainer.addChild(electron);
-      this.electrons.push({
-        sprite: electron,
-        component: component,
-        globalPos: globalPos,
-      });
-    });
-  }
-
   start() {
     if (this.isAnimating) return;
     this.isAnimating = true;
 
-    // Create electrons only for components in the complete circuit.
-    const allComponents = Components.children.filter((c) => ["Wire", "ZincStrip", "CopperStrip", "Ammeter"].includes(c.type));
-    const components = allComponents.filter((component) => {
-      if (component.type === "Wire") {
-        // Only include wires whose all joints are connected
-        return component.joints.every((joint) => joint.connectedTo);
-      }
-      return true;
-    });
-
-    components.forEach((component) => {
-      this.createElectronsForComponent(component);
-    });
-
-    this.startElectronAnimation();
-  }
-
-  startElectronAnimation() {
-    // 停止先前的動畫
-    this.stopElectronAnimation();
-
-    // 取得根據連結點計算出的路徑
+    // 獲取電路路徑
     const points = getCircuitPathPoints();
     if (points.length < 2) {
-      console.warn("連接點不足，無法進行電子動畫。");
+      console.warn("路徑點不足，無法進行電子動畫");
       return;
     }
 
-    console.log("電子運動路徑：", points);
-
-    // 為每個電子建立 GSAP tween 動畫
-    this.electrons.forEach((electronData, index) => {
-      const electron = electronData.sprite;
+    // 創建多個電子
+    const electronCount = 12;
+    for (let i = 0; i < electronCount; i++) {
+      const electron = this.createElectron();
+      this.electronsContainer.addChild(electron);
       electron.visible = true;
 
-      // 初始進度偏移使各電子均勻分布
-      const initialOffset = index / this.electrons.length;
-      electronData.progress = initialOffset;
+      // 計算初始位置
+      const progress = i / electronCount;
+      this.electrons.push({
+        sprite: electron,
+        progress: progress,
+      });
+    }
 
-      const tween = gsap.to(electronData, {
-        duration: 15,
-        progress: 1 + initialOffset,
+    this.animateElectrons(points);
+  }
+
+  animateElectrons(points) {
+    // 為每個電子創建動畫
+    this.electrons.forEach((electron, index) => {
+      const tween = gsap.to(electron, {
+        duration: 8, // 調整動畫速度
+        progress: "+=1",
         repeat: -1,
         ease: "none",
         onUpdate: () => {
-          const currentProgress = electronData.progress % 1;
-          const segmentCount = points.length - 1; // 段數 = 點數 - 1
+          const currentProgress = electron.progress % 1;
+          const segmentCount = points.length - 1;
           const totalProgress = currentProgress * segmentCount;
           const segmentIndex = Math.floor(totalProgress);
-          const t = totalProgress - segmentIndex;
+          const segmentProgress = totalProgress - segmentIndex;
 
-          const currentPoint = points[segmentIndex];
-          const nextPoint = points[segmentIndex + 1];
+          // 確保索引在有效範圍內
+          if (segmentIndex < points.length - 1) {
+            const currentPoint = points[segmentIndex];
+            const nextPoint = points[segmentIndex + 1];
 
-          // 線性插值計算當前位置
-          const globalX = currentPoint.x + (nextPoint.x - currentPoint.x) * t;
-          const globalY = currentPoint.y + (nextPoint.y - currentPoint.y) * t;
+            // 計算當前位置
+            const globalX = currentPoint.x + (nextPoint.x - currentPoint.x) * segmentProgress;
+            const globalY = currentPoint.y + (nextPoint.y - currentPoint.y) * segmentProgress;
 
-          const localPos = this.electronsContainer.toLocal({ x: globalX, y: globalY });
-          electron.x = localPos.x;
-          electron.y = localPos.y;
+            // 轉換為局部坐標
+            const localPos = this.electronsContainer.toLocal({ x: globalX, y: globalY });
+            electron.sprite.position.set(localPos.x, localPos.y);
+          }
         },
       });
 
@@ -1120,6 +1293,7 @@ class ElectronAnimation {
       }
     });
     this.electrons = [];
+    this.electronAnimations = [];
   }
 }
 
@@ -1134,9 +1308,7 @@ class ItemsList {
       燈泡: { texture: "燈泡.png", type: "LightBulb" },
       電池: { texture: "電池.png", type: "Battery" },
       燒杯: { texture: "燒杯.png", type: "Beaker" },
-      碳棒: { texture: "碳棒.png", type: "CarbonRod" },
-      鋅片: { texture: "鋅片.png", type: "ZincStrip" },
-      銅片: { texture: "銅片.png", type: "CopperStrip" },
+      U型管: { texture: "U型管.png", type: "UTube" },
     };
 
     // Default to module4 components
@@ -1248,7 +1420,7 @@ class ItemsList {
             Components.addChild(component);
             // 移除 ItemsList 上的圖案，使其無法再拖動
             // 檢查是否為金屬棒相關組件
-            if (item.componentType === "CarbonRod" || item.componentType === "ZincStrip" || item.componentType === "CopperStrip") {
+            if (item.componentType === "Beaker" || item.componentType === "ZincStrip" || item.componentType === "CopperStrip") {
               // 計算場上相同類型的組件數量
               const sameTypeCount = Components.children.filter((c) => c.type === item.componentType).length;
               if (sameTypeCount >= 2) {
@@ -1260,12 +1432,7 @@ class ItemsList {
             }
 
             // 原有的限制單一使用元件邏輯
-            if (
-              item.componentType === "PhPaper" ||
-              item.componentType === "LightBulb" ||
-              item.componentType === "Battery" ||
-              item.componentType === "Beaker"
-            ) {
+            if (item.componentType === "Utube" || item.componentType === "LightBulb" || item.componentType === "Battery") {
               // 只隱藏除了第一個元素 (itemBg) 以外的所有項目
               for (let i = 1; i < item.children.length; i++) {
                 item.children[i].visible = false;
@@ -1299,17 +1466,11 @@ class ItemsList {
       case "Wire":
         component = new Wire();
         break;
-      case "CopperStrip":
-        component = new CopperStrip();
-        break;
       case "Beaker":
         component = new Beaker();
         break;
-      case "CarbonRod":
-        component = new CarbonRod();
-        break;
-      case "ZincStrip":
-        component = new ZincStrip();
+      case "UTube":
+        component = new UTube();
         break;
     }
 

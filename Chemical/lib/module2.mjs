@@ -455,8 +455,8 @@ class Module2 {
     };
 
     const typeToName = {
-      ZincStrip: "鋅片",
-      CopperStrip: "銅片",
+      ZincStrip: "鋅棒",
+      CopperStrip: "銅棒",
       UTube: "U型管",
       Ammeter: "檢流計",
       Beaker: "燒杯",
@@ -1065,7 +1065,7 @@ class CopperStrip extends Container {
     }
 
     const text = new Text({
-      text: "銅片",
+      text: "銅棒",
       style: listStyle,
     });
     text.anchor.set(0.5);
@@ -1126,7 +1126,7 @@ class ZincStrip extends Container {
       this.addChild(joint);
     }
     const text = new Text({
-      text: "鋅片",
+      text: "鋅棒",
       style: listStyle,
     });
     text.anchor.set(0.5);

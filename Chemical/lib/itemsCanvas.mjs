@@ -1,4 +1,5 @@
-import { Container, Sprite, Graphics, Texture, ColorMatrixFilter } from "./pixi.mjs";
+import { Container, Sprite, Graphics, Texture, ColorMatrixFilter, Text } from "./pixi.mjs";
+import { listStyle } from "./textStyle.mjs";
 
 export class ItemsCanvas {
   constructor() {
@@ -151,8 +152,7 @@ export class ItemsCanvas {
     } else {
       const sprite = new Sprite(Texture.from(imagePath));
       sprite.anchor.set(0.5);
-      const scale = sprite.texture.width / Math.max(sprite.texture.width, sprite.texture.height);
-      sprite.scale.set(scale);
+      sprite.scale.set(0.6);
 
       const jointConfig = this.jointConfigs[imagePath] || [];
       sceneContainer.joints = jointConfig.map((config) => {
@@ -208,9 +208,14 @@ export class ItemsCanvas {
           };
         };
       } else if (imagePath === "碳棒.png") {
-        const rodBody = new Graphics().rect(-20, -125, 40, 250).fill(0x333333);
-
-        sceneContainer.addChild(rodBody);
+        sprite.visible = false;
+        const rodBody = new Graphics().rect(-30, -125, 60, 250).fill(0x333333);
+        const text = new Text({
+          text: "碳棒",
+          style: listStyle,
+        });
+        text.anchor.set(0.5);
+        sceneContainer.addChild(rodBody, text);
       }
 
       sceneContainer.addChild(sprite);

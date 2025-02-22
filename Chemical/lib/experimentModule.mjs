@@ -16,6 +16,7 @@ export class ElectrolysisModule {
 
     // 新增模組設置實例
     this.moduleSetup = new ModuleSetup(itemCanvas);
+    this.moduleSetup.parentModule = this;
     this.setElectron = new SetElectron(itemCanvas);
 
     //pH試紙檢查
@@ -165,7 +166,7 @@ export class ElectrolysisModule {
       const negativeElectrode = new Container();
       const negLabel = new Text({ text: "-", style: scoreStyle });
       negLabel.x = 5;
-      negLabel.y = 70;
+      negLabel.y = 50;
       // 設定負極位置（依實際畫布調整座標）
       negativeElectrode.addChild(negLabel);
       negativeElectrode.x = this.moduleSetup.centerX - 90;
@@ -177,7 +178,7 @@ export class ElectrolysisModule {
       const positiveElectrode = new Container();
       const posLabel = new Text({ text: "+", style: scoreStyle });
       posLabel.x = 5;
-      posLabel.y = 70;
+      posLabel.y = 50;
       positiveElectrode.addChild(posLabel);
       positiveElectrode.x = this.moduleSetup.centerX + 100;
       positiveElectrode.y = this.moduleSetup.centerY + 80;
@@ -949,31 +950,32 @@ export class ElectrolysisModule {
     this.updateElectronAnimation();
   }
 
+  onModuleSetup() {
+    // 如果之前已經勾選要顯示文字，現在設備準備好了就顯示
+    if (this.isTextCheckboxChecked) {
+      this.toggleTextVisibility();
+    }
+  }
+
   toggleTextVisibility(isChecked) {
-    this.isTextCheckboxChecked = isChecked;
+    // 如果提供了參數，則更新勾選狀態
+    if (isChecked !== undefined) {
+      this.isTextCheckboxChecked = isChecked;
+    }
 
-    // 先將所有現有的標籤設為可見或不可見
-    const allComponents = this.itemCanvas.container.children;
-    allComponents.forEach((component) => {
-      if (component.children) {
-        component.children.forEach((child) => {
-          if (child.text === "+" || child.text === "-") {
-            child.visible = isChecked;
-          }
-        });
-      }
-    });
+    // 如果裝置未設置完成，只保存勾選狀態但不做其他操作
+    if (!this.moduleSetup.isSetDown) return;
 
-    // 存儲創建的電極標籤引用
+    // 初始化電極標籤引用
     if (!this.electrodeLabels) {
       this.electrodeLabels = { positive: null, negative: null };
     }
 
-    // 檢查是否已經創建了電極標籤
+    // 創建電極標籤（如果尚未創建）
     if (!this.electrodeLabels.negative) {
       const negLabel = new Text({ text: "-", style: scoreStyle });
       negLabel.x = this.moduleSetup.centerX - 85;
-      negLabel.y = this.moduleSetup.centerY + 150;
+      negLabel.y = this.moduleSetup.centerY + 130;
       this.itemCanvas.container.addChild(negLabel);
       this.electrodeLabels.negative = negLabel;
     }
@@ -981,14 +983,26 @@ export class ElectrolysisModule {
     if (!this.electrodeLabels.positive) {
       const posLabel = new Text({ text: "+", style: scoreStyle });
       posLabel.x = this.moduleSetup.centerX + 105;
-      posLabel.y = this.moduleSetup.centerY + 150;
+      posLabel.y = this.moduleSetup.centerY + 130;
       this.itemCanvas.container.addChild(posLabel);
       this.electrodeLabels.positive = posLabel;
     }
 
-    // 根據 checkbox 狀態設置可見性
-    this.electrodeLabels.negative.visible = isChecked;
-    this.electrodeLabels.positive.visible = isChecked;
+    // 更新所有現有標籤可見性
+    const allComponents = this.itemCanvas.container.children;
+    allComponents.forEach((component) => {
+      if (component.children) {
+        component.children.forEach((child) => {
+          if (child.text === "+" || child.text === "-") {
+            child.visible = this.isTextCheckboxChecked;
+          }
+        });
+      }
+    });
+
+    // 根據勾選狀態設置可見性
+    this.electrodeLabels.negative.visible = this.isTextCheckboxChecked;
+    this.electrodeLabels.positive.visible = this.isTextCheckboxChecked;
   }
 
   // 重置
@@ -1004,10 +1018,25 @@ export class ElectrolysisModule {
     this.ionMoving = false;
     this.moduleSetup.isSetDown = false;
     this.isElectrolysisActive = false;
-  }
 
-  // 更新
-  update(deltaTime) {}
+    // 處理電極文字
+    if (this.electrodeLabels && this.electrodeLabels.positive && this.electrodeLabels.negative) {
+      this.electrodeLabels.positive.visible = false;
+      this.electrodeLabels.negative.visible = false;
+    }
+
+    // 所有組件中的 +/- 文字也設為不可見
+    const allComponents = this.itemCanvas.container.children;
+    allComponents.forEach((component) => {
+      if (component.children) {
+        component.children.forEach((child) => {
+          if (child.text === "+" || child.text === "-") {
+            child.visible = false;
+          }
+        });
+      }
+    });
+  }
 }
 
 export class SetElectron {
@@ -1202,6 +1231,7 @@ export class ModuleSetup {
     this.itemCanvas = itemCanvas;
     this.centerX = 850;
     this.centerY = 520;
+    this.parentModule = null;
   }
 
   setupElectrolysisModule() {
@@ -1226,6 +1256,11 @@ export class ModuleSetup {
         this.itemCanvas.electronModule.createElectronsForComponent(component);
       }
     });
+
+    // 通知 ElectrolysisModule 設備已設置完成
+    if (this.parentModule) {
+      this.parentModule.onModuleSetup();
+    }
 
     return components;
   }
@@ -1341,20 +1376,20 @@ export class ModuleSetup {
     // 定位電線以創建所示的角度連接
     if (wire1?.joints && wire2?.joints && wire3?.joints && wire4?.joints) {
       // 從電池到左碳棒的電線
-      wire1.joints[0].position.set(-260, 110); // 碳棒端
-      wire1.joints[1].position.set(-275, -100); // 電池端
+      wire1.joints[0].position.set(-260, 110); // 電線端
+      wire1.joints[1].position.set(-220, -100); // 電池端
 
-      // 從左碳棒到燈泡的電線
-      wire2.joints[0].position.set(-105, -100); // 碳棒端
+      // 從電池到燈泡的電線
+      wire2.joints[0].position.set(-165, -100); // 電池端
       wire2.joints[1].position.set(150, -25); // 燈泡端
 
       // 從燈泡到右碳棒的電線
       wire3.joints[0].position.set(95, -120); // 燈泡端
       wire3.joints[1].position.set(-30, 100); // 碳棒端
 
-      // 從右碳棒到電池的電線
+      // 從左碳棒到電線的電線
       wire4.joints[0].position.set(-20, -10); // 碳棒端
-      wire4.joints[1].position.set(-280, -50); // 電池端
+      wire4.joints[1].position.set(-280, -50); // 電線端
 
       // 重新繪製所有電線
       [wire1, wire2, wire3, wire4].forEach((wire) => {
