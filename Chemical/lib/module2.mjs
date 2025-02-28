@@ -434,8 +434,8 @@ class Module2 {
     };
 
     const typeToName = {
-      ZincStrip: "鋅棒",
-      CopperStrip: "銅棒",
+      ZincStrip: "鋅片",
+      CopperStrip: "銅片",
       UTube: "U型管",
       Ammeter: "檢流計",
       Beaker: "燒杯",
@@ -563,13 +563,24 @@ class Module2 {
     if (!beakers.every((b) => b.solution)) {
       return { success: false, message: "請為所有燒杯選擇溶液" };
     }
-    const solutionCounts = { 硫酸銅: 0, 硫酸鋅: 0 };
-    beakers.forEach((b) => {
-      if (b.solution in solutionCounts) {
-        solutionCounts[b.solution]++;
-      }
-    });
-    if (solutionCounts["硫酸銅"] !== 1 || solutionCounts["硫酸鋅"] !== 1) {
+
+    // 找出與銅片和鋅片相連的燒杯
+    const copperStrip = allComponents.find((c) => c.type === "CopperStrip");
+    const zincStrip = allComponents.find((c) => c.type === "ZincStrip");
+
+    const copperBeaker = beakers.find((beaker) => beaker.joints.some((joint) => joint.connectedTo?.parent === copperStrip));
+    const zincBeaker = beakers.find((beaker) => beaker.joints.some((joint) => joint.connectedTo?.parent === zincStrip));
+
+    // 檢查連接的燒杯是否存在
+    if (!copperBeaker || !zincBeaker) {
+      return { success: false, message: "銅片和鋅片都必須連接到燒杯" };
+    }
+
+    // 檢查溶液是否正確
+    if (copperBeaker.solution !== "硫酸銅") {
+      return { success: false, message: "不對喔，燒杯溶液不正確！" };
+    }
+    if (zincBeaker.solution !== "硫酸鋅") {
       return { success: false, message: "不對喔，燒杯溶液不正確！" };
     }
 
@@ -650,24 +661,36 @@ class Module2 {
 
   updateAmmeterPointer() {
     const ammeter = Components.children.find((c) => c.type === "Ammeter");
-    if (!ammeter) return;
+    const copperStrip = Components.children.find((c) => c.type === "CopperStrip");
+    if (!ammeter || !copperStrip) return;
 
     const pin = ammeter.children.find((child) => child instanceof Graphics);
-    if (pin) {
-      gsap.to(pin, {
-        rotation: Math.PI / 3,
-        duration: 1,
-        onComplete: () => {
-          gsap.to(pin, {
-            rotation: Math.PI / 2.5,
-            duration: 1,
-            yoyo: true,
-            repeat: -1,
-            ease: "sine.inOut",
-          });
-        },
-      });
-    }
+    if (!pin) return;
+
+    // 取得銅片和檢流計的全域位置
+    const copperGlobalPos = copperStrip.getGlobalPosition();
+    const ammeterGlobalPos = ammeter.getGlobalPosition();
+
+    // 判斷銅片是在檢流計的左邊還是右邊
+    const isAmmeterLeftOfCopper = ammeterGlobalPos.x < copperGlobalPos.x;
+
+    // 根據銅片位置決定指針旋轉方向
+    const rotationAngle = isAmmeterLeftOfCopper ? Math.PI / 3 : -Math.PI / 3;
+    const finalRotationAngle = isAmmeterLeftOfCopper ? Math.PI / 2.5 : -Math.PI / 2.5;
+
+    gsap.to(pin, {
+      rotation: rotationAngle,
+      duration: 1,
+      onComplete: () => {
+        gsap.to(pin, {
+          rotation: finalRotationAngle,
+          duration: 1,
+          yoyo: true,
+          repeat: -1,
+          ease: "sine.inOut",
+        });
+      },
+    });
   }
 
   setupDebugButton() {
@@ -1044,7 +1067,7 @@ class CopperStrip extends Container {
     }
 
     const text = new Text({
-      text: "銅棒",
+      text: "銅片",
       style: listStyle,
     });
     text.anchor.set(0.5);
@@ -1105,7 +1128,7 @@ class ZincStrip extends Container {
       this.addChild(joint);
     }
     const text = new Text({
-      text: "鋅棒",
+      text: "鋅片",
       style: listStyle,
     });
     text.anchor.set(0.5);
@@ -1849,15 +1872,44 @@ class MetalStripAnimation {
     this.isComplete = false;
     this.isAnimating = false;
     this.updateCount = 0;
+    this.elapsedTime = 0; // 追蹤經過的時間（秒）
+    this.totalDuration = 10; // 動畫總長度（秒）
+    this.timeStep = 2; // 每2秒更新一次重量
   }
 
   async start() {
     if (this.isAnimating) return;
     this.isAnimating = true;
 
-    this.drawStrips(0);
+    // 獲取金屬片元件
+    const zincStrip = Components.children.find((c) => c.type === "ZincStrip");
+    const copperStrip = Components.children.find((c) => c.type === "CopperStrip");
 
-    // Start animation loop
+    // 檢查是否有保存的進度
+    if (zincStrip && zincStrip.savedProgress !== undefined) {
+      // 從保存的進度繼續
+      this.elapsedTime = zincStrip.savedProgress * this.totalDuration;
+      this.progress = this.elapsedTime;
+    } else {
+      // 從頭開始
+      this.elapsedTime = 0;
+      this.progress = 0;
+    }
+
+    // 使用當前進度繪製金屬片
+    const normalizedProgress = this.elapsedTime / this.totalDuration;
+    this.drawStrips(normalizedProgress);
+
+    // 如果已經完成了，就直接設置完成狀態
+    if (this.elapsedTime >= this.totalDuration) {
+      this.isComplete = true;
+      if (zincStrip) zincStrip.animationComplete = true;
+      if (copperStrip) copperStrip.animationComplete = true;
+      this.isAnimating = false;
+      return;
+    }
+
+    // Start animation loop - 只有在未完成時才繼續動畫
     while (this.isAnimating && !this.isComplete) {
       await this.updateStrips();
       if (!this.isComplete) {
@@ -1873,7 +1925,25 @@ class MetalStripAnimation {
   reset() {
     this.isAnimating = false;
     this.progress = 0;
+    this.elapsedTime = 0;
     this.isComplete = false;
+
+    // 重置金屬片的保存狀態
+    const zincStrip = Components.children.find((c) => c.type === "ZincStrip");
+    const copperStrip = Components.children.find((c) => c.type === "CopperStrip");
+
+    if (zincStrip) {
+      delete zincStrip.savedProgress;
+      delete zincStrip.animationComplete;
+      zincStrip.progress = 0;
+    }
+
+    if (copperStrip) {
+      delete copperStrip.savedProgress;
+      delete copperStrip.animationComplete;
+      copperStrip.progress = 0;
+    }
+
     this.resetStrips();
   }
 
@@ -1883,8 +1953,14 @@ class MetalStripAnimation {
 
     if (!zincStrip || !copperStrip) return;
 
-    this.progress = Math.min(10, this.progress + 0.1);
-    const normalizedProgress = this.progress / 10;
+    // 更新總進度（0-10秒）
+    this.elapsedTime = Math.min(this.totalDuration, this.elapsedTime + 0.2);
+    this.progress = this.elapsedTime;
+    const normalizedProgress = this.elapsedTime / this.totalDuration;
+
+    // 始終保存當前進度，以便在動畫停止時保留
+    zincStrip.savedProgress = normalizedProgress;
+    copperStrip.savedProgress = normalizedProgress;
 
     // 更新金屬片的進度屬性
     zincStrip.progress = normalizedProgress;
@@ -1892,8 +1968,10 @@ class MetalStripAnimation {
 
     this.updateCount++;
 
-    if (this.progress >= 10) {
+    if (this.elapsedTime >= this.totalDuration) {
       this.isComplete = true;
+      zincStrip.animationComplete = true;
+      copperStrip.animationComplete = true;
     }
 
     this.drawStrips(normalizedProgress);
@@ -1905,14 +1983,18 @@ class MetalStripAnimation {
 
     if (!zincStrip || !copperStrip) return;
 
+    // 使用保存的進度或當前進度（優先使用savedProgress）
+    const zincProgress = zincStrip.savedProgress !== undefined ? zincStrip.savedProgress : progress;
+    const copperProgress = copperStrip.savedProgress !== undefined ? copperStrip.savedProgress : progress;
+
     const zincGraphics = zincStrip.getChildAt(0);
     const copperGraphics = copperStrip.getChildAt(0);
 
     if (zincGraphics && copperGraphics) {
       zincGraphics.clear();
       copperGraphics.clear();
-      this.drawMetalStrip(zincGraphics, progress, 0x808080, true);
-      this.drawMetalStrip(copperGraphics, progress, 0xb87333, false);
+      this.drawMetalStrip(zincGraphics, zincProgress, 0x808080, true);
+      this.drawMetalStrip(copperGraphics, copperProgress, 0xb87333, false);
     }
   }
 
@@ -1936,7 +2018,7 @@ class MetalStripAnimation {
       graphics.lineTo(-width / 2, mainHeight / 2 - addHeight);
 
       // 底部矩形：寬度隨進度減少
-      const currentWidth = width * (1 - progress * 0.25); // 最終寬度為原來的0.5倍
+      const currentWidth = width * (1 - progress * 0.15); // 最終寬度為原來的0.5倍
       graphics.moveTo(-currentWidth / 2, mainHeight / 2 - addHeight);
       graphics.lineTo(currentWidth / 2, mainHeight / 2 - addHeight);
       graphics.lineTo(currentWidth / 2, mainHeight / 2);
@@ -1949,7 +2031,7 @@ class MetalStripAnimation {
       graphics.lineTo(-width / 2, mainHeight / 2 - addHeight);
 
       // 底部矩形：寬度隨進度增加
-      const currentWidth = width * (1 + progress * 0.25); // 最終寬度為原來的1.5倍
+      const currentWidth = width * (1 + progress * 0.15); // 最終寬度為原來的1.5倍
       graphics.moveTo(-currentWidth / 2, mainHeight / 2 - addHeight);
       graphics.lineTo(currentWidth / 2, mainHeight / 2 - addHeight);
       graphics.lineTo(currentWidth / 2, mainHeight / 2);
@@ -2192,6 +2274,7 @@ class Weight {
     });
 
     metalStripsInArea.forEach((strip) => {
+      // 計算當前重量（已根據保存的進度計算）
       const weight = this.calculateWeight(strip);
       totalWeight += weight;
     });
@@ -2204,14 +2287,21 @@ class Weight {
   }
 
   calculateWeight(strip) {
-    const progress = (strip.progress || 0) * 10;
+    // 使用savedProgress（如果有）或者當前progress
+    const progress = strip.savedProgress !== undefined ? strip.savedProgress : strip.progress || 0;
+
+    // 總長度為10秒，每2秒變化一次
+    // 將 progress 從 0-1 轉換為 0-5 (每2秒一個階段，共5個階段)
+    const timeSteps = Math.floor(progress * 5);
+
     if (strip.type === "ZincStrip") {
-      // 將 3.25 改為 0.325，這樣 100-0.325*10 = 96.75g
-      return 100 - progress * 0.325;
+      // 鋅片起始重量為100g，每2秒減少0.65g
+      return 100 - timeSteps * 0.65;
     } else if (strip.type === "CopperStrip") {
-      // 將 3.15 改為 0.315，這樣 100+0.315*10 = 103.15g
-      return 100 + progress * 0.315;
+      // 銅片起始重量為100g，每2秒增加0.63g
+      return 100 + timeSteps * 0.63;
     }
+
     return 0;
   }
 }
