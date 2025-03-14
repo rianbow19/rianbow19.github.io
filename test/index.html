@@ -19,11 +19,106 @@
         transform: translateY(-5px);
         box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
       }
+
+      /* 輪播圖樣式 */
+      .slideshow-container {
+        position: relative;
+        width: 100%;
+        height: 100vh;
+        overflow: hidden;
+      }
+      .slide {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        transition: opacity 1s ease-in-out;
+        background-size: cover;
+        background-position: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .slide.active {
+        opacity: 1;
+      }
+      .slide-content {
+        text-align: center;
+        color: white;
+        max-width: 800px;
+        padding: 20px;
+        z-index: 10;
+        position: relative;
+      }
+      .slide-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.4);
+      }
+      .slide-dots {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        z-index: 20;
+      }
+      .dot {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background-color: rgba(255, 255, 255, 0.5);
+        margin: 0 5px;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+      }
+      .dot.active {
+        background-color: white;
+      }
+      .slide-arrow {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 50px;
+        height: 50px;
+        background-color: rgba(0, 0, 0, 0.3);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        z-index: 20;
+        transition: background-color 0.3s ease;
+      }
+      .slide-arrow:hover {
+        background-color: rgba(0, 0, 0, 0.6);
+      }
+      .prev {
+        left: 20px;
+      }
+      .next {
+        right: 20px;
+      }
+      .fixed-nav {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 100;
+        background-color: rgba(255, 255, 255, 0.9);
+        backdrop-filter: blur(5px);
+      }
     </style>
   </head>
   <body class="bg-gray-50 text-gray-800">
     <!-- 導航欄 -->
-    <nav class="bg-white shadow-md">
+    <nav class="fixed-nav shadow-md">
       <div class="container mx-auto px-4 py-4 flex justify-between items-center">
         <a href="#" class="text-2xl font-bold text-indigo-600">ARTFOLIO</a>
         <div class="hidden md:flex space-x-8">
@@ -51,21 +146,102 @@
       </div>
     </nav>
 
-    <!-- 英雄區塊 -->
-    <section class="hero-gradient text-white py-20 md:py-32">
-      <div class="container mx-auto px-4 text-center">
-        <h1 class="text-4xl md:text-6xl font-bold mb-6">探索藝術的無限可能</h1>
-        <p class="text-xl md:text-2xl mb-10 max-w-3xl mx-auto">
-          每一幅作品都是情感的表達，是思想的交流，是靈魂的對話。
-        </p>
-        <a
-          href="#gallery"
-          class="bg-white text-indigo-600 px-8 py-3 rounded-full font-medium hover:bg-gray-100 transition-colors"
-        >
-          瀏覽作品集
-        </a>
+    <!-- 全屏輪播圖 -->
+    <div class="slideshow-container">
+      <div
+        class="slide active"
+        style="background-image: url('https://source.unsplash.com/random/1920x1080/?abstract,art')"
+      >
+        <div class="slide-overlay"></div>
+        <div class="slide-content">
+          <h1 class="text-4xl md:text-6xl font-bold mb-6">探索藝術的無限可能</h1>
+          <p class="text-xl md:text-2xl mb-10">
+            每一幅作品都是情感的表達，是思想的交流，是靈魂的對話。
+          </p>
+          <a
+            href="#gallery"
+            class="bg-white text-indigo-600 px-8 py-3 rounded-full font-medium hover:bg-gray-100 transition-colors"
+          >
+            瀏覽作品集
+          </a>
+        </div>
       </div>
-    </section>
+      <div
+        class="slide"
+        style="
+          background-image: url('https://source.unsplash.com/random/1920x1080/?painting,exhibition');
+        "
+      >
+        <div class="slide-overlay"></div>
+        <div class="slide-content">
+          <h1 class="text-4xl md:text-6xl font-bold mb-6">感受色彩的力量</h1>
+          <p class="text-xl md:text-2xl mb-10">透過藝術，我們能夠表達那些無法用言語描述的情感。</p>
+          <a
+            href="#gallery"
+            class="bg-white text-indigo-600 px-8 py-3 rounded-full font-medium hover:bg-gray-100 transition-colors"
+          >
+            探索作品
+          </a>
+        </div>
+      </div>
+      <div
+        class="slide"
+        style="background-image: url('https://source.unsplash.com/random/1920x1080/?modern,art')"
+      >
+        <div class="slide-overlay"></div>
+        <div class="slide-content">
+          <h1 class="text-4xl md:text-6xl font-bold mb-6">創新與傳統的融合</h1>
+          <p class="text-xl md:text-2xl mb-10">在傳統與現代之間尋找平衡，創造獨特的藝術語言。</p>
+          <a
+            href="#about"
+            class="bg-white text-indigo-600 px-8 py-3 rounded-full font-medium hover:bg-gray-100 transition-colors"
+          >
+            了解藝術家
+          </a>
+        </div>
+      </div>
+
+      <!-- 輪播圖控制按鈕 -->
+      <div class="slide-arrow prev">
+        <svg
+          class="w-6 h-6"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M15 19l-7-7 7-7"
+          ></path>
+        </svg>
+      </div>
+      <div class="slide-arrow next">
+        <svg
+          class="w-6 h-6"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M9 5l7 7-7 7"
+          ></path>
+        </svg>
+      </div>
+
+      <!-- 輪播圖指示點 -->
+      <div class="slide-dots">
+        <div class="dot active"></div>
+        <div class="dot"></div>
+        <div class="dot"></div>
+      </div>
+    </div>
 
     <!-- 精選作品 -->
     <section id="gallery" class="py-20 bg-white">
@@ -399,5 +575,75 @@
         </div>
       </div>
     </footer>
+
+    <!-- 輪播圖JavaScript -->
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        let currentSlide = 0;
+        const slides = document.querySelectorAll(".slide");
+        const dots = document.querySelectorAll(".dot");
+        const prevBtn = document.querySelector(".prev");
+        const nextBtn = document.querySelector(".next");
+        const totalSlides = slides.length;
+        let slideInterval;
+
+        // 顯示指定的幻燈片
+        function showSlide(index) {
+          // 處理索引範圍
+          if (index >= totalSlides) {
+            currentSlide = 0;
+          } else if (index < 0) {
+            currentSlide = totalSlides - 1;
+          } else {
+            currentSlide = index;
+          }
+
+          // 隱藏所有幻燈片並移除所有點的活動狀態
+          slides.forEach((slide) => slide.classList.remove("active"));
+          dots.forEach((dot) => dot.classList.remove("active"));
+
+          // 顯示當前幻燈片並激活對應的點
+          slides[currentSlide].classList.add("active");
+          dots[currentSlide].classList.add("active");
+        }
+
+        // 自動播放幻燈片
+        function startSlideShow() {
+          slideInterval = setInterval(() => {
+            showSlide(currentSlide + 1);
+          }, 5000); // 每5秒切換一次
+        }
+
+        // 停止自動播放
+        function stopSlideShow() {
+          clearInterval(slideInterval);
+        }
+
+        // 設置點擊事件
+        prevBtn.addEventListener("click", () => {
+          stopSlideShow();
+          showSlide(currentSlide - 1);
+          startSlideShow();
+        });
+
+        nextBtn.addEventListener("click", () => {
+          stopSlideShow();
+          showSlide(currentSlide + 1);
+          startSlideShow();
+        });
+
+        // 為每個點設置點擊事件
+        dots.forEach((dot, index) => {
+          dot.addEventListener("click", () => {
+            stopSlideShow();
+            showSlide(index);
+            startSlideShow();
+          });
+        });
+
+        // 開始自動播放
+        startSlideShow();
+      });
+    </script>
   </body>
 </html>
